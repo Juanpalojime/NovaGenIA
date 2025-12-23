@@ -1,0 +1,16 @@
+torch
+torchvision
+torchaudio
+diffusers
+transformers
+accelerate
+safetensors
+opencv-python
+fastapi
+uvicorn
+python-multipart
+pyngrok
+nest-asyncio
+xformers
+peft
+bitsandbytes
