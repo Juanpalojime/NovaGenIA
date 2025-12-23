@@ -1,0 +1,126 @@
+import React, { useRef, useEffect } from 'react'
+import { clsx } from 'clsx'
+import { useCanvasStore } from '../stores/useCanvasStore'
+
+const CanvasBoard: React.FC = () => {
+    const { zoom, pan, setPan, setZoom, activeTool, setActiveTool, undo, redo, pushToHistory } = useCanvasStore()
+    const isDragging = useRef(false)
+    const lastPos = useRef({ x: 0, y: 0 })
+
+    // Keyboard Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+
+            // Tools
+            if (e.key.toLowerCase() === 'b') setActiveTool('brush')
+            if (e.key.toLowerCase() === 'v') setActiveTool('select')
+            if (e.key.toLowerCase() === 'h') setActiveTool('move')
+            if (e.key.toLowerCase() === 'm') setActiveTool('mask')
+
+            // Undo/Redo
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault()
+                if (e.shiftKey) {
+                    redo()
+                } else {
+                    undo()
+                }
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [setActiveTool, undo, redo])
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (activeTool === 'move' || e.button === 1) {
+            isDragging.current = true
+            lastPos.current = { x: e.clientX, y: e.clientY }
+        } else if (activeTool === 'brush' || activeTool === 'mask') {
+            // Start drawing action -> push current state to history first
+            pushToHistory()
+        }
+    }
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isDragging.current) return
+        const dx = e.clientX - lastPos.current.x
+        const dy = e.clientY - lastPos.current.y
+        setPan({ x: pan.x + dx, y: pan.y + dy })
+        lastPos.current = { x: e.clientX, y: e.clientY }
+    }
+
+    const handleMouseUp = () => {
+        isDragging.current = false
+    }
+
+    const handleWheel = (e: React.WheelEvent) => {
+        if (e.ctrlKey) {
+            e.preventDefault()
+            const delta = -e.deltaY * 0.001
+            setZoom(Math.min(Math.max(0.1, zoom + delta), 5))
+        }
+    }
+
+    return (
+        <div
+            className={clsx(
+                "absolute inset-0 bg-[#080808] overflow-hidden cursor-crosshair",
+                (activeTool === 'move') && "cursor-grab active:cursor-grabbing"
+            )}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onWheel={handleWheel}
+        >
+            {/* Infinite Grid Pattern */}
+            <div
+                className="absolute inset-0 pointer-events-none opacity-20"
+                style={{
+                    backgroundImage: `radial-gradient(circle, #333 1px, transparent 1px)`,
+                    backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
+                    transform: `translate(${pan.x % (20 * zoom)}px, ${pan.y % (20 * zoom)}px)`
+                }}
+            />
+
+            {/* Content Container */}
+            <div
+                className="absolute left-1/2 top-1/2 origin-center transition-transform duration-75 ease-out shadow-2xl"
+                style={{
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) translate(-50%, -50%)`,
+                    width: '1024px',
+                    height: '1024px',
+                    backgroundImage: 'url("https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974&auto=format&fit=crop")', // Placeholder
+                    backgroundSize: 'cover',
+                }}
+            >
+                {/* Overlay for tool visualization */}
+                {(activeTool === 'brush' || activeTool === 'mask') && (
+                    <div className="absolute inset-0 pointer-events-none">
+                        {/* Dynamic Brush Preview would go here (tracking mouse) */}
+                        <div className={clsx(
+                            "absolute inset-0 opacity-10 transition-opacity duration-300",
+                            activeTool === 'brush' ? "bg-neon-cyan/10" : "bg-neon-magenta/10"
+                        )} />
+                    </div>
+                )}
+            </div>
+
+            {/* HUD Info */}
+            <div className="absolute bottom-6 left-6 flex gap-3">
+                <div className="px-3 py-1 bg-black/60 backdrop-blur rounded text-xs text-gray-400 font-mono border border-white/5 pointer-events-none flex items-center gap-2">
+                    <span>{Math.round(zoom * 100)}%</span>
+                    <span className="w-px h-3 bg-white/10" />
+                    <span>X: {Math.round(pan.x)} Y: {Math.round(pan.y)}</span>
+                </div>
+                {/* Shortcut hint */}
+                <div className="px-2 py-1 bg-black/40 rounded text-[10px] text-gray-600 font-mono border border-white/5 pointer-events-none">
+                    B: Brush | V: Select | Ctrl+Z: Undo
+                </div>
+            </div>
+        </div>
+    )
+}
+
+export default CanvasBoard
