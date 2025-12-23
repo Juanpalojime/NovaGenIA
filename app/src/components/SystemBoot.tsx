@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Terminal, CheckCircle2, Cpu, Database, Wifi, Shield } from 'lucide-react'
 import { useSystemStore } from '../store/useSystemStore'
 import { clsx } from 'clsx'
+import { checkBackendHealth, startConnectionMonitor } from '../lib/connectionService'
+import { getApiUrl } from '../lib/api'
 
 interface SystemBootProps {
     onComplete: () => void
@@ -11,7 +13,8 @@ interface SystemBootProps {
 const SystemBoot: React.FC<SystemBootProps> = ({ onComplete }) => {
     const [logs, setLogs] = useState<string[]>([])
     const [progress, setProgress] = useState(0)
-    const { setConnected, setGpuStatus } = useSystemStore()
+    const [hasError, setHasError] = useState(false)
+    const { setConnected, setGpuStatus, setVramUsage } = useSystemStore()
 
     const addLog = (msg: string) => setLogs(prev => [...prev, msg])
 
@@ -25,26 +28,71 @@ const SystemBoot: React.FC<SystemBootProps> = ({ onComplete }) => {
             await new Promise(r => setTimeout(r, 500))
             setProgress(30)
 
-            addLog("[CONN] Establishing handshake with Neural Engine...")
-            // Simulate handshake
-            await new Promise(r => setTimeout(r, 800))
-            setConnected(true)
-            setProgress(50)
-            addLog("[SUCCESS] Connected to Localhost:7860")
-
-            addLog("[GPU] Detecting CUDA capabilities...")
-            await new Promise(r => setTimeout(r, 600))
-            setGpuStatus('online')
-            setProgress(80)
-            addLog("[GPU] NVIDIA RTX 4090 detected (24GB VRAM)")
-
-            addLog("[LOAD] Loading User Identity & Presets...")
+            // Real backend connection check
+            const apiUrl = getApiUrl()
+            addLog(`[CONN] Connecting to ${apiUrl}...`)
             await new Promise(r => setTimeout(r, 400))
-            setProgress(100)
-            addLog("[READY] System fully operational.")
+            setProgress(40)
 
-            await new Promise(r => setTimeout(r, 800))
-            onComplete()
+            try {
+                addLog("[CONN] Performing health check...")
+                const health = await checkBackendHealth()
+
+                if (!health) {
+                    throw new Error("Backend unreachable")
+                }
+
+                setConnected(true)
+                setProgress(60)
+                addLog(`[SUCCESS] Connected to ${health.version || 'NovaGen Backend'}`)
+
+                // Real GPU detection
+                addLog("[GPU] Detecting GPU capabilities...")
+                await new Promise(r => setTimeout(r, 400))
+
+                if (health.gpu.available) {
+                    setGpuStatus('online')
+                    const gpuName = health.gpu.name || 'GPU'
+                    const vramTotal = health.gpu.vram_total ? `${(health.gpu.vram_total / 1024).toFixed(1)}GB` : 'N/A'
+                    addLog(`[GPU] ${gpuName} detected (${vramTotal} VRAM)`)
+
+                    if (health.gpu.vram_total && health.gpu.vram_used) {
+                        const vramPercent = (health.gpu.vram_used / health.gpu.vram_total) * 100
+                        setVramUsage(Math.round(vramPercent))
+                    }
+                } else {
+                    setGpuStatus('offline')
+                    addLog("[WARNING] No GPU detected - CPU mode")
+                }
+
+                setProgress(80)
+
+                addLog("[LOAD] Loading User Identity & Presets...")
+                await new Promise(r => setTimeout(r, 400))
+                setProgress(90)
+
+                // Start connection monitoring
+                addLog("[MONITOR] Starting connection monitor...")
+                startConnectionMonitor(30000) // Check every 30 seconds
+
+                setProgress(100)
+                addLog("[READY] System fully operational.")
+
+                await new Promise(r => setTimeout(r, 800))
+                onComplete()
+
+            } catch (error) {
+                setHasError(true)
+                setConnected(false)
+                setGpuStatus('offline')
+                addLog(`[ERROR] Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                addLog("[INFO] Please check your API endpoint in Settings → Connections")
+                setProgress(100)
+
+                // Still complete boot after error, but show warning
+                await new Promise(r => setTimeout(r, 2000))
+                onComplete()
+            }
         }
 
         sequence()

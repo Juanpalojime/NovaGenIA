@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getApiUrl } from '../../../lib/api'
 
 export interface Asset {
     id: string
@@ -16,7 +17,7 @@ export interface Asset {
 
 interface LibraryState {
     assets: Asset[]
-    selectedAssetIds: string[]
+    selectedAssetIds: string[] // Changed to string[] to match usage in components
     viewMode: 'grid' | 'list'
     searchTerm: string
     activeTags: string[]
@@ -28,54 +29,79 @@ interface LibraryState {
     addAssets: (assets: Asset[]) => void
     toggleSelection: (id: string, multi: boolean) => void
     clearSelection: () => void
-    setViewMode: (mode: 'grid' | 'list') => void
     toggleFavorite: (id: string) => void
+    setViewMode: (mode: 'grid' | 'list') => void
     deleteAssets: (ids: string[]) => void
     setSearchTerm: (term: string) => void
+    fetchLibrary: () => Promise<void>
 
     // Advanced
     undo: () => void
     redo: () => void
 }
 
-// Mock Data
-const generateMockAssets = (count: number): Asset[] => {
-    return Array.from({ length: count }).map((_, i) => ({
-        id: `asset-${i}`,
-        url: `https://picsum.photos/seed/${i * 123}/512/${i % 3 === 0 ? 768 : 512}`, // Random aspect ratios
-        prompt: i % 2 === 0 ? "cyberpunk street scene, neon lights, rain, 8k" : "portrait of an android, cinematic lighting, detailed face",
-        width: 512,
-        height: i % 3 === 0 ? 768 : 512,
-        createdAt: Date.now() - i * 1000000,
-        tags: i % 2 === 0 ? ['cyberpunk', 'city'] : ['portrait', 'scifi'],
-        model: 'SDXL 1.0',
-        isFavorite: Math.random() > 0.8,
-        seed: Math.floor(Math.random() * 1000000)
-    }))
-}
-
 export const useLibraryStore = create<LibraryState>((set, get) => ({
-    assets: generateMockAssets(20),
-    selectedAssetIds: new Set(),
-    viewMode: 'masonry',
+    assets: [],
+    selectedAssetIds: [],
+    viewMode: 'grid',
     searchTerm: '',
     activeTags: [],
     history: [],
     future: [],
 
     setAssets: (assets) => set({ assets }),
-    addAssets: (newAssets) => set((state) => ({ assets: [...newAssets, ...state.assets] })),
-    toggleSelection: (id, multi = false) => set((state) => {
-        const newSelection = new Set(multi ? state.selectedAssetIds : [])
-        if (newSelection.has(id)) {
-            newSelection.delete(id)
-        } else {
-            newSelection.add(id)
+
+    fetchLibrary: async () => {
+        try {
+            const apiUrl = getApiUrl();
+            const response = await fetch(`${apiUrl}/gallery`, {
+                headers: {
+                    'ngrok-skip-browser-warning': 'true'
+                }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                // Prepend API URL to relative image paths
+                const assetsWithFullUrls = data.map((asset: Asset) => ({
+                    ...asset,
+                    url: asset.url.startsWith('http') ? asset.url : `${apiUrl}${asset.url}`
+                }));
+                set({ assets: assetsWithFullUrls });
+            } else {
+                console.error("Failed to fetch library");
+            }
+        } catch (error) {
+            console.error("Error fetching library:", error);
         }
-        return { selectedAssetIds: newSelection }
+    },
+
+    addAssets: (newAssets) => set((state) => ({
+        assets: [...newAssets, ...state.assets]
+    })),
+
+    toggleSelection: (id, multi = false) => set((state) => {
+        const currentSelection = state.selectedAssetIds;
+        let newSelection: string[];
+
+        if (multi) {
+            if (currentSelection.includes(id)) {
+                newSelection = currentSelection.filter(item => item !== id);
+            } else {
+                newSelection = [...currentSelection, id];
+            }
+        } else {
+            // Single selection behavior: toggle if same, else select only new one
+            if (currentSelection.length === 1 && currentSelection[0] === id) {
+                newSelection = [];
+            } else {
+                newSelection = [id];
+            }
+        }
+
+        return { selectedAssetIds: newSelection };
     }),
 
-    clearSelection: () => set({ selectedAssetIds: new Set() }),
+    clearSelection: () => set({ selectedAssetIds: [] }),
 
     setViewMode: (mode) => set({ viewMode: mode }),
 
@@ -85,10 +111,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
     deleteAssets: (ids) => {
         const { assets, history } = get()
+        // Save current state to history before deleting
         const newHistory = [assets, ...history].slice(0, 10)
+
         set({
             assets: assets.filter(a => !ids.includes(a.id)),
-            selectedAssetIds: new Set(),
+            selectedAssetIds: [],
             history: newHistory,
             future: []
         })

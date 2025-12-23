@@ -1,8 +1,9 @@
 import React from 'react'
 import { clsx } from 'clsx'
-import { Heart, MoreVertical, Copy, Maximize2 } from 'lucide-react'
-import { useLibraryStore, Asset } from '../stores/useLibraryStore'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Heart, Copy, Maximize2 } from 'lucide-react'
+import { useLibraryStore } from '../stores/useLibraryStore'
+import type { Asset } from '../stores/useLibraryStore'
+import { motion } from 'framer-motion'
 
 const AssetCard: React.FC<{ asset: Asset; selected: boolean }> = ({ asset, selected }) => {
     const { toggleSelection, toggleFavorite } = useLibraryStore()
@@ -62,20 +63,16 @@ const AssetCard: React.FC<{ asset: Asset; selected: boolean }> = ({ asset, selec
                 </div>
             </div>
 
-            {/* Semantic Tag Suggestion (Simulated) */}
-            {asset.tags.includes('cyberpunk') && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity delay-500 pointer-events-none">
-                    <div className="px-2 py-1 bg-black/80 backdrop-blur text-[10px] text-neon-cyan border border-neon-cyan/30 rounded-full shadow-lg whitespace-nowrap">
-                        ✨ Auto-tagged: Sci-Fi
-                    </div>
-                </div>
-            )}
         </motion.div>
     )
 }
 
 const AssetGrid: React.FC = () => {
-    const { assets, selectedAssetIds } = useLibraryStore()
+    const { assets, selectedAssetIds, fetchLibrary } = useLibraryStore()
+
+    React.useEffect(() => {
+        fetchLibrary()
+    }, [fetchLibrary])
 
     // Simple masonry simulation manually splitting columns for now
     // In production use 'react-masonry-css' or similar
@@ -92,7 +89,7 @@ const AssetGrid: React.FC = () => {
                 {columnWrapper.map((colAssets, colIndex) => (
                     <div key={colIndex} className="flex-1 flex flex-col gap-4">
                         {colAssets.map(asset => (
-                            <AssetCard key={asset.id} asset={asset} selected={selectedAssetIds.has(asset.id)} />
+                            <AssetCard key={asset.id} asset={asset} selected={selectedAssetIds.includes(asset.id)} />
                         ))}
                     </div>
                 ))}

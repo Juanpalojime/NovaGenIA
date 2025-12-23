@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useGlobalStore } from '@/store/useGlobalStore'
 
 export interface TrainingJob {
     id: string
@@ -66,12 +67,12 @@ interface TrainingState {
     toggleMagicMode: () => void
     addDatasetImages: (images: DatasetImage[]) => void
     removeDatasetImage: (id: string) => void
-    startTraining: () => void
+    startTraining: () => Promise<void>
     stopTraining: () => void
     previewCheckpoint: (checkpointId: string) => void
 }
 
-export const useTrainingStore = create<TrainingState>((set, get) => ({
+export const useTrainingStore = create<TrainingState>((set) => ({
     activeJob: null,
     recentJobs: [],
     dataset: [],
@@ -93,9 +94,9 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
         accuracy: []
     },
     systemStats: {
-        vramUsage: 45,
-        gpuTemp: 62,
-        gpuUtil: 30
+        vramUsage: 0,
+        gpuTemp: 0,
+        gpuUtil: 0
     },
     batchPreviews: [],
 
@@ -103,7 +104,7 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
 
     toggleMagicMode: () => set((state) => {
         const newMode = !state.config.isMagicMode
-        // Auto-tune simulation
+        // Auto-tune parameters
         const autoConfig = newMode ? {
             learningRate: 0.0004,
             batchSize: 4,
@@ -116,50 +117,79 @@ export const useTrainingStore = create<TrainingState>((set, get) => ({
 
     addDatasetImages: (images) => set((state) => ({
         dataset: [...state.dataset, ...images],
-        // Simulate analyzing dataset stats
-        logs: [...state.logs, `[Dataset] Analyzed ${images.length} new images directly from drag & drop.`]
+        logs: [...state.logs, `[Dataset] Added ${images.length} new images.`]
     })),
 
     removeDatasetImage: (id) => set((state) => ({ dataset: state.dataset.filter(img => img.id !== id) })),
 
-    startTraining: () => {
-        // ... (Existing start logic, plus init metrics)
-        const mockMetrics = Array.from({ length: 50 }, (_, i) => ({
-            loss: Math.max(0.01, 0.5 - i * 0.01 + Math.random() * 0.05),
-            lr: 0.0001,
-            acc: Math.min(0.99, 0.5 + i * 0.01)
-        }))
+    startTraining: async () => {
+        const state = useTrainingStore.getState()
+        const { apiEndpoint } = useGlobalStore.getState()
 
-        set({
-            activeJob: {
-                id: `job-${Date.now()}`,
-                name: get().config.modelName || 'Untitled LoRA',
-                status: 'preparing',
-                progress: 0,
-                currentStep: 0,
-                totalSteps: get().config.steps,
-                loss: 0,
-                elapsedTime: '00:00',
-                thumbnail: '',
-                type: 'lora',
-                checkpoints: []
-            },
-            metrics: {
-                loss: mockMetrics.map(m => m.loss),
-                learningRate: mockMetrics.map(m => m.lr),
-                accuracy: mockMetrics.map(m => m.acc)
-            },
-            batchPreviews: [
-                'https://picsum.photos/seed/batch1/256/256',
-                'https://picsum.photos/seed/batch2/256/256',
-                'https://picsum.photos/seed/batch3/256/256'
-            ]
-        })
+        try {
+            // Call real training API
+            const response = await fetch(`${apiEndpoint}/train`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_name: state.config.modelName,
+                    steps: state.config.steps,
+                    learning_rate: state.config.learningRate,
+                    batch_size: state.config.batchSize,
+                    trigger_word: state.config.triggerWord
+                })
+            })
+
+            if (!response.ok) {
+                throw new Error('Training failed to start')
+            }
+
+            const data = await response.json()
+
+            set({
+                activeJob: {
+                    id: data.job_id || `job-${Date.now()}`,
+                    name: state.config.modelName,
+                    status: 'training',
+                    progress: 0,
+                    currentStep: 0,
+                    totalSteps: state.config.steps,
+                    loss: 0,
+                    elapsedTime: '00:00',
+                    thumbnail: '',
+                    type: 'lora',
+                    checkpoints: []
+                },
+                logs: [`[${new Date().toLocaleTimeString()}] Training started: ${state.config.modelName}`]
+            })
+
+            // TODO: Implement real-time progress polling from backend
+
+        } catch (error) {
+            console.error('Training error:', error)
+            set({
+                logs: [`[${new Date().toLocaleTimeString()}] ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`],
+                activeJob: {
+                    id: `job-${Date.now()}`,
+                    name: state.config.modelName,
+                    status: 'failed',
+                    progress: 0,
+                    currentStep: 0,
+                    totalSteps: state.config.steps,
+                    loss: 0,
+                    elapsedTime: '00:00',
+                    thumbnail: '',
+                    type: 'lora',
+                    checkpoints: []
+                }
+            })
+        }
     },
 
     stopTraining: () => set({ activeJob: null }),
 
-    previewCheckpoint: (checkpointId) => {
+    previewCheckpoint: (_checkpointId: string) => {
         // Logic to load checkpoint preview
+        // TODO: Implement when backend supports it
     }
 }))

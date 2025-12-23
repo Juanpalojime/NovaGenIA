@@ -2,14 +2,20 @@ import os
 import torch
 import uvicorn
 from fastapi import FastAPI, BackgroundTasks
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from diffusers import StableDiffusionXLPipeline
 from pydantic import BaseModel
 import base64
 from io import BytesIO
 import subprocess
+import time
+from glob import glob
 
 app = FastAPI()
+
+# Ensure outputs directory exists
+os.makedirs("outputs", exist_ok=True)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,6 +23,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount outputs directory for static access
+app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
 # Global Pipeline
 pipe = None
@@ -63,6 +72,28 @@ def read_root():
     gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
     return {"status": status, "gpu": gpu_name}
 
+@app.get("/health")
+def health_check():
+    """Health check endpoint for frontend connection monitoring"""
+    gpu_available = torch.cuda.is_available()
+    
+    gpu_info = {
+        "available": gpu_available,
+    }
+    
+    if gpu_available:
+        gpu_info["name"] = torch.cuda.get_device_name(0)
+        # VRAM in MB
+        gpu_info["vram_total"] = torch.cuda.get_device_properties(0).total_memory / (1024 * 1024)
+        gpu_info["vram_used"] = (torch.cuda.memory_allocated(0) + torch.cuda.memory_reserved(0)) / (1024 * 1024)
+    
+    return {
+        "status": "online",
+        "gpu": gpu_info,
+        "model_loaded": pipe is not None,
+        "version": "NovaGen Backend v2.0"
+    }
+
 @app.post("/generate")
 async def generate_image(req: GenerationRequest):
     if pipe is None: load_model()
@@ -78,10 +109,48 @@ async def generate_image(req: GenerationRequest):
         generator=generator
     ).images[0]
     
+    # Save to disk
+    timestamp = int(time.time() * 1000)
+    filename = f"gen_{timestamp}.png"
+    filepath = os.path.join("outputs", filename)
+    image.save(filepath, format="PNG")
+    
+    # Also return base64 for immediate feedback (optional, but keeping it for now)
     buffered = BytesIO()
     image.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    return {"image": f"data:image/png;base64,{img_str}", "status": "success"}
+    
+    return {
+        "images": [{
+            "url": f"/outputs/{filename}",
+            "path": filepath,
+            "seed": req.seed if req.seed != -1 else -1
+        }],
+        "model": "SDXL 1.0",
+        "status": "success"
+    }
+
+@app.get("/gallery")
+def get_gallery():
+    """Get all generated images from outputs directory"""
+    files = sorted(glob("outputs/*.png"), key=os.path.getmtime, reverse=True)
+    assets = []
+    for f in files:
+        filename = os.path.basename(f)
+        stat = os.stat(f)
+        assets.append({
+            "id": filename,
+            "url": f"/outputs/{filename}",  # Relative URL, frontend will prepend API endpoint
+            "prompt": "Generated Image",
+            "width": 1024,
+            "height": 1024,
+            "createdAt": int(stat.st_mtime * 1000),
+            "tags": ["generated"],
+            "model": "SDXL 1.0",
+            "isFavorite": False,
+            "seed": 0
+        })
+    return assets
 
 @app.post("/train")
 async def start_training(req: TrainingRequest, background_tasks: BackgroundTasks):

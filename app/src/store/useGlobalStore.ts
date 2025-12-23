@@ -62,7 +62,7 @@ export const useGlobalStore = create<GlobalState>()(
             // Initial State
             user: {
                 username: 'NovaUser',
-                avatar: 'https://i.pravatar.cc/150?u=nova',
+                avatar: '/avatar-default.png', // Local default avatar
                 role: 'Pro',
                 stats: { imagesGenerated: 1240, modelsTrained: 5, hoursActive: 48 },
                 badges: ['Early Adopter', 'Model Creator', 'Power User']

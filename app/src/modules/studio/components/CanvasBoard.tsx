@@ -88,11 +88,9 @@ const CanvasBoard: React.FC = () => {
             <div
                 className="absolute left-1/2 top-1/2 origin-center transition-transform duration-75 ease-out shadow-2xl"
                 style={{
-                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) translate(-50%, -50%)`,
-                    width: '1024px',
-                    height: '1024px',
-                    backgroundImage: 'url("https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1974&auto=format&fit=crop")', // Placeholder
-                    backgroundSize: 'cover',
+                    transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                    transformOrigin: '0 0',
+                    backgroundColor: '#1a1a1a' // Solid background instead of placeholder image
                 }}
             >
                 {/* Overlay for tool visualization */}

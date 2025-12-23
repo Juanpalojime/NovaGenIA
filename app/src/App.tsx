@@ -22,7 +22,7 @@ const App: React.FC = () => {
           <Route index element={<Navigate to="/creative" replace />} />
           <Route path="creative" element={<CreativeDashboard />} />
           <Route path="studio" element={<ProStudio />} />
-          <Route path="assets" element={<AssetLibrary />} />
+          <Route path="library" element={<AssetLibrary />} />
           <Route path="training" element={<TrainingCenter />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

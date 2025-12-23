@@ -1,0 +1,30 @@
+# Core
+react
+react-dom
+react-router-dom
+
+# Build & Tooling
+vite
+@vitejs/plugin-react
+
+# State Management
+zustand
+
+# Styling
+tailwindcss
+postcss
+autoprefixer
+clsx
+
+# Animations
+framer-motion
+
+# UI & Icons
+lucide-react
+
+# Charts & Visuals
+chart.js
+react-chartjs-2
+
+# Utilities
+axios
