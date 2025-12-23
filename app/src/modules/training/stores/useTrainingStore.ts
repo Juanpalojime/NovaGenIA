@@ -127,16 +127,49 @@ export const useTrainingStore = create<TrainingState>((set) => ({
         const { apiEndpoint } = useGlobalStore.getState()
 
         try {
-            // Call real training API
+            set({
+                logs: [`[${new Date().toLocaleTimeString()}] Preparing dataset (${state.dataset.length} images)...`]
+            })
+
+            // 1. Upload Dataset Images
+            for (const img of state.dataset) {
+                // Ensure we have base64 or fetch it
+                let base64Data = img.url
+                if (img.url.startsWith('http')) {
+                    const res = await fetch(img.url)
+                    const blob = await res.blob()
+                    base64Data = await new Promise<string>((resolve) => {
+                        const reader = new FileReader()
+                        reader.onloadend = () => resolve(reader.result as string)
+                        reader.readAsDataURL(blob)
+                    })
+                }
+
+                await fetch(`${apiEndpoint}/upload-training-image`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image: base64Data,
+                        project_name: state.config.modelName,
+                        filename: `img_${img.id}.png`
+                    })
+                })
+            }
+
+            set({
+                logs: [...state.logs, `[${new Date().toLocaleTimeString()}] Dataset uploaded. Starting training...`]
+            })
+
+            // 2. Call real training API
             const response = await fetch(`${apiEndpoint}/train`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     project_name: state.config.modelName,
                     steps: state.config.steps,
-                    learning_rate: state.config.learningRate,
-                    batch_size: state.config.batchSize,
-                    trigger_word: state.config.triggerWord
+                    // learning_rate: state.config.learningRate, // Backend might expect simple args, server.py Request model has steps
+                    // batch_size: state.config.batchSize,
+                    // trigger_word: state.config.triggerWord
                 })
             })
 

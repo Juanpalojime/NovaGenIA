@@ -4,7 +4,44 @@ import { useGlobalStore } from '../../../store/useGlobalStore'
 import { clsx } from 'clsx'
 
 const AppearanceSection: React.FC = () => {
-    const { themeMode, accentColor, uiDensity, reduceMotion, updateSettings } = useGlobalStore()
+    const { themeMode, accentColor, uiDensity, reduceMotion, updateSettings, addNotification } = useGlobalStore()
+
+    const handleThemeChange = (newTheme: 'dark' | 'light' | 'system') => {
+        updateSettings({ themeMode: newTheme })
+        addNotification({
+            type: 'success',
+            message: `Theme changed to ${newTheme}`
+        })
+        console.log('Theme updated to:', newTheme)
+    }
+
+    const handleAccentChange = (newAccent: 'cyan' | 'magenta' | 'green' | 'custom') => {
+        updateSettings({ accentColor: newAccent })
+        addNotification({
+            type: 'success',
+            message: `Accent color changed to ${newAccent}`
+        })
+        console.log('Accent color updated to:', newAccent)
+    }
+
+    const handleDensityChange = (newDensity: 'compact' | 'comfortable' | 'spacious') => {
+        updateSettings({ uiDensity: newDensity })
+        addNotification({
+            type: 'success',
+            message: `UI density changed to ${newDensity}`
+        })
+        console.log('UI density updated to:', newDensity)
+    }
+
+    const handleMotionToggle = () => {
+        const newValue = !reduceMotion
+        updateSettings({ reduceMotion: newValue })
+        addNotification({
+            type: 'success',
+            message: `Reduce motion ${newValue ? 'enabled' : 'disabled'}`
+        })
+        console.log('Reduce motion updated to:', newValue)
+    }
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -20,7 +57,7 @@ const AppearanceSection: React.FC = () => {
                     ].map((theme) => (
                         <button
                             key={theme.id}
-                            onClick={() => updateSettings({ themeMode: theme.id as any })}
+                            onClick={() => handleThemeChange(theme.id as any)}
                             className={clsx(
                                 "flex flex-col items-center gap-3 p-4 rounded-xl border transition-all",
                                 themeMode === theme.id
@@ -30,6 +67,9 @@ const AppearanceSection: React.FC = () => {
                         >
                             <theme.icon size={24} />
                             <span className="text-sm font-medium">{theme.label}</span>
+                            {themeMode === theme.id && (
+                                <div className="absolute top-2 right-2 w-2 h-2 bg-neon-cyan rounded-full shadow-[0_0_10px_rgba(0,243,255,1)]" />
+                            )}
                         </button>
                     ))}
                 </div>
@@ -48,7 +88,7 @@ const AppearanceSection: React.FC = () => {
                     ].map((accent) => (
                         <button
                             key={accent.id}
-                            onClick={() => updateSettings({ accentColor: accent.id as any })}
+                            onClick={() => handleAccentChange(accent.id as any)}
                             className={clsx(
                                 "w-12 h-12 rounded-full border-2 transition-all relative group",
                                 accentColor === accent.id ? "border-white scale-110" : "border-transparent opacity-50 hover:opacity-100 hover:scale-105"
@@ -106,7 +146,7 @@ const AppearanceSection: React.FC = () => {
                     ].map((density) => (
                         <button
                             key={density.id}
-                            onClick={() => updateSettings({ uiDensity: density.id as any })}
+                            onClick={() => handleDensityChange(density.id as any)}
                             className={clsx(
                                 "w-full flex items-center gap-4 p-3 rounded-lg border transition-all text-left",
                                 uiDensity === density.id
@@ -140,9 +180,30 @@ const AppearanceSection: React.FC = () => {
                 </div>
                 <div
                     className={clsx("w-10 h-6 rounded-full p-1 cursor-pointer transition-colors", reduceMotion ? "bg-neon-cyan" : "bg-white/10")}
-                    onClick={() => updateSettings({ reduceMotion: !reduceMotion })}
+                    onClick={handleMotionToggle}
                 >
                     <div className={clsx("w-4 h-4 bg-white rounded-full transition-transform", reduceMotion ? "translate-x-4" : "translate-x-0")} />
+                </div>
+            </div>
+
+            {/* Debug Info */}
+            <div className="p-4 bg-black/40 border border-white/10 rounded-xl font-mono text-xs space-y-2">
+                <div className="text-gray-500 mb-2">Current Settings (Debug):</div>
+                <div className="flex justify-between">
+                    <span className="text-gray-500">Theme Mode:</span>
+                    <span className="text-neon-cyan">{themeMode}</span>
+                </div>
+                <div className="flex justify-between">
+                    <span className="text-gray-500">Accent Color:</span>
+                    <span className="text-neon-cyan">{accentColor}</span>
+                </div>
+                <div className="flex justify-between">
+                    <span className="text-gray-500">UI Density:</span>
+                    <span className="text-neon-cyan">{uiDensity}</span>
+                </div>
+                <div className="flex justify-between">
+                    <span className="text-gray-500">Reduce Motion:</span>
+                    <span className="text-neon-cyan">{reduceMotion ? 'Yes' : 'No'}</span>
                 </div>
             </div>
         </div>

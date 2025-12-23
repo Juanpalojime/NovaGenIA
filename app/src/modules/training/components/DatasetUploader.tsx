@@ -1,19 +1,47 @@
 import React, { useRef } from 'react'
-import { Upload, X, Image as ImageIcon, Plus } from 'lucide-react'
+import { Upload, X, Plus } from 'lucide-react'
 import { useTrainingStore } from '../stores/useTrainingStore'
-import { clsx } from 'clsx'
 
 const DatasetUploader: React.FC = () => {
     const { dataset, addDatasetImages, removeDatasetImage } = useTrainingStore()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const newImages = Array.from(e.target.files).map((file, i) => ({
-                id: `img-${Date.now()}-${i}`,
-                url: URL.createObjectURL(file),
-                caption: file.name.split('.')[0] // Auto-caption from filename
-            }))
+            const files = Array.from(e.target.files)
+
+            // Load images and get dimensions
+            const imagePromises = files.map((file, i) => {
+                return new Promise<{ id: string; url: string; caption: string; width: number; height: number }>((resolve) => {
+                    const url = URL.createObjectURL(file)
+                    const img = new Image()
+
+                    img.onload = () => {
+                        resolve({
+                            id: `img-${Date.now()}-${i}`,
+                            url: url,
+                            caption: file.name.split('.')[0],
+                            width: img.width,
+                            height: img.height
+                        })
+                    }
+
+                    img.onerror = () => {
+                        // Fallback if image fails to load
+                        resolve({
+                            id: `img-${Date.now()}-${i}`,
+                            url: url,
+                            caption: file.name.split('.')[0],
+                            width: 512,
+                            height: 512
+                        })
+                    }
+
+                    img.src = url
+                })
+            })
+
+            const newImages = await Promise.all(imagePromises)
             addDatasetImages(newImages)
         }
     }

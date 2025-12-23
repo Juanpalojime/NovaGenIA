@@ -14,3 +14,10 @@ nest-asyncio
 xformers
 peft
 bitsandbytes
+pillow
+numpy
+scipy
+insightface
+onnxruntime-gpu
+controlnet_aux
+scikit-learn

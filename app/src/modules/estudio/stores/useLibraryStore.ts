@@ -32,7 +32,9 @@ interface LibraryState {
     toggleFavorite: (id: string) => void
     setViewMode: (mode: 'grid' | 'list') => void
     deleteAssets: (ids: string[]) => void
+    removeAsset: (id: string) => void
     setSearchTerm: (term: string) => void
+    setActiveTags: (tags: string[]) => void
     fetchLibrary: () => Promise<void>
 
     // Advanced
@@ -122,7 +124,21 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         })
     },
 
+    removeAsset: (id) => {
+        const { assets, history } = get()
+        // Save current state to history before deleting
+        const newHistory = [assets, ...history].slice(0, 10)
+
+        set({
+            assets: assets.filter(a => a.id !== id),
+            history: newHistory,
+            future: []
+        })
+    },
+
     setSearchTerm: (term) => set({ searchTerm: term }),
+
+    setActiveTags: (tags) => set({ activeTags: tags }),
 
     undo: () => {
         const { history, assets, future } = get()

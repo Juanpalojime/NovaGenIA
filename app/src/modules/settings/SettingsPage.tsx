@@ -2,10 +2,13 @@ import React, { useState } from 'react'
 import { User, Settings as SettingsIcon, Shield, Palette, HardDrive, Bell } from 'lucide-react'
 import AppearanceSection from './components/AppearanceSection'
 import ConnectionsSection from './components/ConnectionsSection'
+import ProfileSection from './components/ProfileSection'
+import SystemInfoSection from './components/SystemInfoSection'
+import NotificationsSection from './components/NotificationsSection'
 import { clsx } from 'clsx'
 
 const SettingsPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'connections' | 'system'>('appearance')
+    const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'connections' | 'system' | 'notifications'>('appearance')
 
     const tabs = [
         { id: 'profile', label: 'My Account', icon: User },
@@ -60,21 +63,11 @@ const SettingsPage: React.FC = () => {
                     </header>
 
                     <div className="min-h-[400px]">
+                        {activeTab === 'profile' && <ProfileSection />}
                         {activeTab === 'appearance' && <AppearanceSection />}
                         {activeTab === 'connections' && <ConnectionsSection />}
-                        {activeTab === 'profile' && (
-                            <div className="flex flex-col items-center justify-center h-64 border border-dashed border-white/10 rounded-xl bg-white/5 text-gray-500">
-                                <User size={48} className="mb-4 opacity-20" />
-                                <p>User Profile module coming in next update.</p>
-                            </div>
-                        )}
-                        {/* More placeholders for other tabs */}
-                        {['system', 'notifications'].includes(activeTab) && (
-                            <div className="flex flex-col items-center justify-center h-64 border border-dashed border-white/10 rounded-xl bg-white/5 text-gray-500 animate-pulse">
-                                <HardDrive size={48} className="mb-4 opacity-20" />
-                                <p>System Diagnostics module loading...</p>
-                            </div>
-                        )}
+                        {activeTab === 'system' && <SystemInfoSection />}
+                        {activeTab === 'notifications' && <NotificationsSection />}
                     </div>
                 </div>
             </main>

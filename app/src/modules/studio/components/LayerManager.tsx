@@ -4,7 +4,18 @@ import { clsx } from 'clsx'
 import { useCanvasStore } from '../stores/useCanvasStore'
 
 const LayerManager: React.FC = () => {
-    const { layers, activeLayerId, setActiveLayer, toggleLayerVisibility, toggleLayerLock, setLayerBlendMode, reorderLayers } = useCanvasStore()
+    const { layers, activeLayerId, setActiveLayer, toggleLayerVisibility, toggleLayerLock, setLayerBlendMode, reorderLayers, addLayer } = useCanvasStore()
+
+    const handleAddLayer = () => {
+        addLayer({
+            type: 'image',
+            name: `Reference Layer ${layers.length + 1}`,
+            visible: true,
+            locked: false,
+            opacity: 100,
+            blendMode: 'normal'
+        })
+    }
 
     return (
         <div className="absolute right-6 top-6 w-72 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl z-30 overflow-hidden flex flex-col max-h-[calc(100vh-3rem)]">
@@ -81,7 +92,10 @@ const LayerManager: React.FC = () => {
             </div>
 
             <div className="p-2 border-t border-white/10">
-                <button className="w-full py-1.5 text-xs font-medium text-center text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors">
+                <button
+                    onClick={handleAddLayer}
+                    className="w-full py-1.5 text-xs font-medium text-center text-gray-400 hover:text-white hover:bg-white/5 rounded transition-colors"
+                >
                     + Add Reference Layer
                 </button>
             </div>

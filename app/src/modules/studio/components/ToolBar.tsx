@@ -4,7 +4,7 @@ import { clsx } from 'clsx'
 import { useCanvasStore } from '../stores/useCanvasStore'
 
 const ToolBar: React.FC = () => {
-    const { activeTool, setActiveTool } = useCanvasStore()
+    const { activeTool, setActiveTool, resetView } = useCanvasStore()
 
     const tools = [
         { id: 'select', icon: MousePointer2, label: 'Select' },
@@ -37,8 +37,15 @@ const ToolBar: React.FC = () => {
 
             <div className="w-full h-px bg-white/10 my-1" />
 
-            <button className="p-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-all" title="Fit to Screen">
+            <button
+                onClick={resetView}
+                className="p-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/10 transition-all group relative"
+                title="Fit to Screen"
+            >
                 <Maximize size={20} />
+                <span className="absolute left-full ml-4 px-2 py-1 bg-black border border-white/10 rounded text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    Fit to Screen
+                </span>
             </button>
         </div>
     )

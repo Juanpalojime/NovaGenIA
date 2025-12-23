@@ -30,6 +30,8 @@ interface CanvasState {
     setLayerOpacity: (id: string, opacity: number) => void
     setLayerBlendMode: (id: string, mode: Layer['blendMode']) => void
     reorderLayers: (dragIndex: number, hoverIndex: number) => void
+    addLayer: (layer: Omit<Layer, 'id'>) => void
+    resetView: () => void
 
     pushToHistory: () => void
     undo: () => void
@@ -74,6 +76,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         const [removed] = newLayers.splice(dragIndex, 1)
         newLayers.splice(hoverIndex, 0, removed)
         return { layers: newLayers }
+    }),
+
+    addLayer: (layer) => set((state) => {
+        const newLayer: Layer = {
+            ...layer,
+            id: `layer-${Date.now()}`
+        }
+        return {
+            layers: [...state.layers, newLayer],
+            activeLayerId: newLayer.id
+        }
+    }),
+
+    resetView: () => set({
+        zoom: 1,
+        pan: { x: 0, y: 0 }
     }),
 
     pushToHistory: () => {

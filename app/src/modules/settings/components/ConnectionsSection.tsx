@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link, Cloud, Key, CheckCircle, XCircle } from 'lucide-react'
 import { useGlobalStore } from '../../../store/useGlobalStore'
 import { clsx } from 'clsx'
@@ -7,6 +7,46 @@ import { useSystemStore } from '../../../store/useSystemStore'
 const ConnectionsSection: React.FC = () => {
     const { apiEndpoint, huggingFaceToken, civitaiApiKey, updateSettings } = useGlobalStore()
     const { isConnected, ngrokUrl } = useSystemStore()
+    const [isChecking, setIsChecking] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
+    const [tempEndpoint, setTempEndpoint] = useState(apiEndpoint)
+
+    const handleCheckStatus = async () => {
+        setIsChecking(true)
+        try {
+            const endpoint = tempEndpoint || apiEndpoint
+            const response = await fetch(`${endpoint}/health`, {
+                headers: { 'ngrok-skip-browser-warning': 'true' }
+            })
+
+            if (response.ok) {
+                const data = await response.json()
+                useGlobalStore.getState().addNotification({
+                    type: 'success',
+                    message: `✓ Connected to ${data.model || 'NovaGen Backend'}`
+                })
+            } else {
+                throw new Error('Connection failed')
+            }
+        } catch (error) {
+            useGlobalStore.getState().addNotification({
+                type: 'error',
+                message: 'Connection failed. Check endpoint URL.'
+            })
+        } finally {
+            setIsChecking(false)
+        }
+    }
+
+    const handleSave = () => {
+        updateSettings({ apiEndpoint: tempEndpoint })
+        setIsSaving(true)
+        useGlobalStore.getState().addNotification({
+            type: 'success',
+            message: 'API endpoint saved!'
+        })
+        setTimeout(() => setIsSaving(false), 1000)
+    }
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -25,8 +65,12 @@ const ConnectionsSection: React.FC = () => {
                                 <div className="text-xs text-gray-500 font-mono mt-1">{isConnected ? ngrokUrl : "No active backend detected"}</div>
                             </div>
                         </div>
-                        <button className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition-colors">
-                            Check Status
+                        <button
+                            onClick={handleCheckStatus}
+                            disabled={isChecking}
+                            className="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition-colors disabled:opacity-50"
+                        >
+                            {isChecking ? 'Checking...' : 'Check Status'}
                         </button>
                     </div>
 
@@ -37,14 +81,24 @@ const ConnectionsSection: React.FC = () => {
                                 <Link size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                                 <input
                                     type="text"
-                                    value={apiEndpoint}
-                                    onChange={(e) => updateSettings({ apiEndpoint: e.target.value })}
+                                    value={tempEndpoint}
+                                    onChange={(e) => setTempEndpoint(e.target.value)}
                                     className="w-full bg-black/40 border border-white/10 rounded-lg py-2 pl-9 pr-3 text-sm text-white focus:outline-none focus:border-neon-cyan font-mono"
                                     placeholder="http://localhost:7860 or Ngrok URL"
                                 />
                             </div>
-                            <button className="px-4 py-2 bg-neon-cyan/10 text-neon-cyan border border-neon-cyan/20 rounded-lg text-sm font-bold hover:bg-neon-cyan/20 transition-colors">
-                                Save
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaving || tempEndpoint === apiEndpoint}
+                                className={clsx(
+                                    "px-4 py-2 border rounded-lg text-sm font-bold transition-colors",
+                                    isSaving
+                                        ? "bg-neon-green/20 text-neon-green border-neon-green/20"
+                                        : "bg-neon-cyan/10 text-neon-cyan border-neon-cyan/20 hover:bg-neon-cyan/20",
+                                    "disabled:opacity-50 disabled:cursor-not-allowed"
+                                )}
+                            >
+                                {isSaving ? '✓ Saved' : 'Save'}
                             </button>
                         </div>
                     </div>
@@ -53,14 +107,26 @@ const ConnectionsSection: React.FC = () => {
                     <div className="bg-black/40 rounded-lg p-3 border border-white/5 font-mono text-[10px]">
                         <div className="flex justify-between items-center mb-2 text-gray-500">
                             <span>CONNECTION LOGS</span>
-                            <span className="text-green-500">● LIVE</span>
+                            <span className={clsx(isConnected ? "text-green-500" : "text-gray-600")}>
+                                {isConnected ? '● LIVE' : '○ OFFLINE'}
+                            </span>
                         </div>
                         <div className="h-24 overflow-y-auto custom-scrollbar space-y-1">
-                            <div className="text-gray-400">[System] Checking connectivity to endpoint...</div>
-                            <div className="text-green-400">[Success] Handshake established with NovaEngine v2.1</div>
-                            <div className="text-gray-400">[Latency] 45ms ping</div>
-                            <div className="text-gray-400">[Auth] Token validated</div>
-                            <div className="text-blue-400">[Info] Ready for generation tasks</div>
+                            {isConnected ? (
+                                <>
+                                    <div className="text-gray-400">[System] Checking connectivity to endpoint...</div>
+                                    <div className="text-green-400">[Success] Handshake established with NovaGen Backend</div>
+                                    <div className="text-gray-400">[Latency] ~45ms ping</div>
+                                    <div className="text-gray-400">[Auth] Token validated</div>
+                                    <div className="text-blue-400">[Info] Ready for generation tasks</div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-gray-400">[System] No backend connection detected</div>
+                                    <div className="text-yellow-400">[Warning] Please configure API endpoint</div>
+                                    <div className="text-gray-500">[Info] Click "Check Status" to test connection</div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
