@@ -6,7 +6,7 @@ import { useSystemStore } from '@/store/useSystemStore'
 import CommandPalette from '@/components/ui/CommandPalette'
 
 const MainLayout: React.FC = () => {
-    const { isConnected, gpuStatus, vramUsage } = useSystemStore()
+    const { isConnected, gpuStatus, gpuName, vramUsage } = useSystemStore()
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
     const navItems = [
@@ -111,7 +111,7 @@ const MainLayout: React.FC = () => {
                         {/* GPU Info */}
                         <div className="mt-3 flex justify-between text-xs font-mono relative z-10">
                             <span className="text-gray-500">GPU</span>
-                            <span className="text-white">{gpuStatus === 'online' ? 'TESLA T4' : 'N/A'}</span>
+                            <span className="text-white uppercase truncate flex-1 text-right ml-2">{gpuStatus === 'online' ? gpuName : 'N/A'}</span>
                         </div>
                     </div>
                 </div>

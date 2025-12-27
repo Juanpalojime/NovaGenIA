@@ -503,13 +503,46 @@ def health_check():
         "version": "NovaGen Backend v2.1",
         "gpu": {
             "available": cuda_available,
-            "name": torch.cuda.get_device_name(0) if cuda_available else None,
-            "vram_total": vram_info.get("total_vram_gb"),
-            "vram_used": vram_info.get("allocated_vram_gb")
+            "name": torch.cuda.get_device_name(0) if cuda_available else "CPU Mode",
+            "vram_total": round(torch.cuda.get_device_properties(0).total_memory / 1024**2, 2) if cuda_available else 0, # In MB
+            "vram_used": round(torch.cuda.memory_allocated(0) / 1024**2, 2) if cuda_available else 0  # In MB
         },
         "models": models_status,
-        "cuda_available": cuda_available, # Keep for legacy/debug
-        "vram": vram_info # Keep for legacy/debug
+        "cuda_available": cuda_available,
+        "vram": vram_info
+    }
+
+@app.get("/gpu/status")
+def get_gpu_status():
+    """Detailed GPU statistics for the GPU Monitor component"""
+    cuda_available = torch.cuda.is_available()
+    if not cuda_available:
+        return {"available": False, "count": 0, "gpus": []}
+    
+    gpus = []
+    count = torch.cuda.device_count()
+    for i in range(count):
+        props = torch.cuda.get_device_properties(i)
+        total = props.total_memory
+        allocated = torch.cuda.memory_allocated(i)
+        reserved = torch.cuda.memory_reserved(i)
+        free = total - allocated
+        
+        gpus.append({
+            "id": i,
+            "name": props.name,
+            "total_vram_gb": round(total / 1024**3, 2),
+            "allocated_vram_gb": round(allocated / 1024**3, 2),
+            "cached_vram_gb": round(reserved / 1024**3, 2),
+            "free_vram_gb": round(free / 1024**3, 2),
+            "utilization": round((allocated / total) * 100, 1),
+            "active_jobs": 1 if current_job else 0
+        })
+        
+    return {
+        "available": True,
+        "count": count,
+        "gpus": gpus
     }
 
 @app.get("/modes")

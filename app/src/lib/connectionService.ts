@@ -47,6 +47,7 @@ export function startConnectionMonitor(intervalMs: number = 30000) {
         if (health) {
             store.setConnected(true)
             store.setGpuStatus(health.gpu.available ? 'online' : 'offline')
+            if (health.gpu.name) store.setGpuName(health.gpu.name)
 
             // Calculate VRAM usage percentage
             if (health.gpu.vram_total && health.gpu.vram_used) {
