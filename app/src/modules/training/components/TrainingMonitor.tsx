@@ -29,7 +29,7 @@ const TrainingMonitor: React.FC = () => {
                     </div>
                 </div>
 
-                {/* System Stats (Simulated) */}
+                {/* System Stats */}
                 <div className="flex gap-4">
                     <div className="text-right">
                         <div className="text-[10px] text-gray-500 uppercase">VRAM</div>
@@ -80,7 +80,7 @@ const TrainingMonitor: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Batch Previews (Simulated) */}
+                    {/* Batch Previews */}
                     <div className="h-24 shrink-0 flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
                         {batchPreviews.map((url, i) => (
                             <div key={i} className="aspect-square h-full rounded border border-white/10 overflow-hidden relative group">

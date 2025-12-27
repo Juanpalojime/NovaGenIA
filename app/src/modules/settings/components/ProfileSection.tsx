@@ -3,10 +3,14 @@ import { User, Award, Activity, Database, Clock, Edit2, Shield, Save, X } from '
 import { useGlobalStore } from '../../../store/useGlobalStore'
 
 const ProfileSection: React.FC = () => {
-    const { user, updateUser, addNotification } = useGlobalStore()
+    const { user, updateUser, addNotification, fetchUserStats } = useGlobalStore()
     const [isEditingName, setIsEditingName] = useState(false)
     const [tempUsername, setTempUsername] = useState(user.username)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    React.useEffect(() => {
+        fetchUserStats()
+    }, [fetchUserStats])
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click()

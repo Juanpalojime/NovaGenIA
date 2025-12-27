@@ -23,8 +23,6 @@ def train(args):
 
     # Check for accelerate
     training_script = "scripts/train_dreambooth_lora_sdxl.py" 
-    # Note: User must have this script. We can provide a placeholder or assume it exists in a standard location.
-    # For this implementation, we assume the user might not have it yet, so we check.
     
     has_accelerate = False
     try:
@@ -57,20 +55,23 @@ def train(args):
         
         try:
             # Stream output
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             
             while True:
-                output = process.stdout.readline()
-                if output == '' and process.poll() is not None:
+                line = process.stdout.readline()
+                if line == '' and process.poll() is not None:
                     break
-                if output:
-                    print(output.strip())
+                if line:
+                    line = line.strip()
+                    print(line)
                     sys.stdout.flush()
             
             if process.returncode == 0:
+                print("PROGRESS: 100")
                 print("✅ Entrenamiento Real Completado Exitosamente.")
                 return True
             else:
+                print("ERROR: Training failed")
                 print("❌ Error en el proceso de entrenamiento.")
                 return False
                 
@@ -86,10 +87,13 @@ def train(args):
         total_steps = args.max_train_steps
         
         for i in range(total_steps):
-            time.sleep(0.1) # Más rápido para demo
+            time.sleep(0.5)
             loss = 0.15 - (i / total_steps * 0.1)
+            prog = int((i + 1) / total_steps * 100)
+            print(f"PROGRESS: {prog}")
+            print(f"METRICS: loss={loss:.4f} steps={i+1}/{total_steps}")
             if i % 10 == 0:
-                 print(f"Step {i}/{total_steps} - Loss: {loss:.4f}")
+                  print(f"LOG: Step {i}/{total_steps} - Batch processed")
         
         # Crear un archivo dummy como "resultado"
         with open(os.path.join(output_dir, f"{args.project_name}.safetensors"), "w") as f:

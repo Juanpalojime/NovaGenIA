@@ -130,21 +130,47 @@ class ModelHub:
             # For simplicity, we'll download the main model file
             # In production, you'd want to download all necessary files
             
-            logger.info(f"Starting download: {model_id}")
+            logger.info(f"Starting real download: {model_id}")
             
-            # Simulate progress for now (actual implementation would use HF's progress callback)
-            for progress in range(0, 101, 10):
-                self.active_downloads[download_id] = progress
-                if progress_callback:
-                    await progress_callback(download_id, progress)
-                await asyncio.sleep(0.5)  # Simulate download time
+            # Determine filename - in a real scenario we might need to search for the best file
+            # For this implementation, we'll try to find common SDXL model filenames
+            filename = "model.safetensors"
             
-            # In real implementation:
-            # file_path = hf_hub_download(
-            #     repo_id=model_id,
-            #     filename="model.safetensors",  # or appropriate filename
-            #     cache_dir=str(self.cache_dir)
-            # )
+            # Use hf_hub_download with progress monitoring
+            def hf_callback(progress_info):
+                # Simple progress calculation if available from HF
+                if progress_callback and 'total' in progress_info and progress_info['total'] > 0:
+                    prog = (progress_info['current'] / progress_info['total']) * 100
+                    self.active_downloads[download_id] = prog
+                    asyncio.run_coroutine_threadsafe(
+                        progress_callback(download_id, prog),
+                        asyncio.get_event_loop()
+                    )
+
+            # Note: hf_hub_download is synchronous, so we run it in a thread for real use
+            # but for this async method we can use loop.run_in_executor
+            loop = asyncio.get_event_loop()
+            file_path = await loop.run_in_executor(
+                None,
+                lambda: hf_hub_download(
+                    repo_id=model_id,
+                    filename=filename,
+                    cache_dir=str(self.cache_dir),
+                    resume_download=True
+                )
+            )
+            
+            # Move/Symlink to target directory
+            model_name = model_id.split('/')[-1]
+            final_path = target_dir / f"{model_name}.safetensors"
+            
+            import shutil
+            shutil.copy2(file_path, final_path)
+            
+            logger.info(f"Download completed: {final_path}")
+            self.active_downloads[download_id] = 100.0
+            if progress_callback:
+                await progress_callback(download_id, 100.0)
             
             del self.active_downloads[download_id]
             

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { apiFetch } from '@/lib/api'
 
 interface UserProfile {
     username: string
@@ -54,6 +55,7 @@ interface GlobalState {
     markAllRead: () => void
     logConnection: (message: string) => void
     resetDefaults: () => void
+    fetchUserStats: () => Promise<void>
 }
 
 export const useGlobalStore = create<GlobalState>()(
@@ -112,7 +114,27 @@ export const useGlobalStore = create<GlobalState>()(
                 reduceMotion: false,
                 apiEndpoint: 'http://localhost:7860',
                 notificationsEnabled: true
-            })
+            }),
+
+            fetchUserStats: async () => {
+                try {
+                    const stats = await apiFetch<any>('/api/stats');
+                    if (stats) {
+                        set((state) => ({
+                            user: {
+                                ...state.user,
+                                stats: {
+                                    ...state.user.stats,
+                                    imagesGenerated: stats.total_generations || state.user.stats.imagesGenerated,
+                                    // Other stats could be added here if backend supports them
+                                }
+                            }
+                        }));
+                    }
+                } catch (error) {
+                    console.error('Error syncing user stats:', error);
+                }
+            }
         }),
         {
             name: 'novagen-global-storage',

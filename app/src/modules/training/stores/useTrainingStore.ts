@@ -190,7 +190,11 @@ export const useTrainingStore = create<TrainingState>((set) => ({
                 if (!currentJob || currentJob.status === 'completed' || currentJob.status === 'failed') return;
 
                 try {
-                    const statusData = await apiFetch(`/train/status?job_id=${currentJob.id}`);
+                    const [statusData, gpuData] = await Promise.all([
+                        apiFetch<any>(`/train/status?job_id=${currentJob.id}`),
+                        apiFetch<any>('/gpu/status')
+                    ]);
+
                     set((state) => ({
                         activeJob: state.activeJob ? {
                             ...state.activeJob,
@@ -200,6 +204,11 @@ export const useTrainingStore = create<TrainingState>((set) => ({
                             loss: statusData.loss,
                             elapsedTime: statusData.elapsed_time
                         } : null,
+                        systemStats: gpuData ? {
+                            vramUsage: gpuData.vram_percentage || 0,
+                            gpuTemp: gpuData.temperature || 0,
+                            gpuUtil: gpuData.utilization || 0
+                        } : state.systemStats,
                         logs: statusData.logs ? [...state.logs, ...statusData.logs] : state.logs
                     }));
 

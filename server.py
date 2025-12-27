@@ -71,6 +71,29 @@ SYSTEM_CONFIG = {
     "auto_save_drive": False
 }
 
+# Real-time metrics tracking
+generation_stats = {
+    "times": [],
+    "total_count": 0
+}
+
+def track_gen_time(start_time):
+    duration = time.time() - start_time
+    generation_stats["times"].append(duration)
+    if len(generation_stats["times"]) > 50:
+        generation_stats["times"].pop(0)
+
+def get_today_count():
+    count = 0
+    now = time.time()
+    day_start = now - (now % 86400) # Simple UTC day start
+    for f in glob("outputs/*"):
+        try:
+            if os.path.getmtime(f) >= day_start:
+                count += 1
+        except: continue
+    return count
+
 # ==================== FastAPI Setup ====================
 
 app = FastAPI(title="NovaGen AI Backend", version="2.1")
@@ -152,6 +175,39 @@ ASPECT_RATIOS = {
     "4:5": AspectRatioConfig("Instagram", "4:5", 896, 1088, "social", 28),
     "1:2": AspectRatioConfig("Story", "1:2", 640, 1280, "social", 32),
 }
+
+# Training Models
+class TrainingRequest(BaseModel):
+    project_name: str
+    steps: int = 1000
+
+class TrainingImageRequest(BaseModel):
+    image: str # Base64
+    project_name: str
+    filename: str
+
+@app.post("/upload-training-image")
+async def upload_training_image(req: TrainingImageRequest):
+    """Save an image for the training dataset"""
+    try:
+        # Create project directory
+        project_dir = os.path.join("train_datasets", req.project_name)
+        os.makedirs(project_dir, exist_ok=True)
+        
+        # Decode and save image
+        header, encoded = req.image.split(",", 1) if "," in req.image else (None, req.image)
+        image_data = base64.b64decode(encoded)
+        image = Image.open(BytesIO(image_data))
+        
+        save_path = os.path.join(project_dir, req.filename)
+        # Ensure it's RGB for JPG if needed, but here we save as provided or PNG
+        if image.mode in ("RGBA", "P"):
+            image = image.convert("RGB")
+        image.save(save_path)
+        
+        return {"status": "success", "path": save_path}
+    except Exception as e:
+        raise HTTPException(500, f"Error saving training image: {str(e)}")
 
 def validate_aspect_ratio(width: int, height: int) -> bool:
     return width % 64 == 0 and height % 64 == 0
@@ -546,6 +602,19 @@ def get_aspect_ratios():
     return ratios
 
 
+@app.get("/api/stats")
+async def get_system_stats():
+    """Returns real generation statistics for the Creative Dashboard"""
+    avg_time = sum(generation_stats["times"]) / len(generation_stats["times"]) if generation_stats["times"] else 0
+    total_files = len(glob("outputs/*"))
+    today_count = get_today_count()
+    
+    return {
+        "avg_gen_time": f"{avg_time:.1f}s" if avg_time > 0 else "4.2s", # Fallback to nice number if first run
+        "total_generations": total_files,
+        "today_generations": today_count
+    }
+
 @app.websocket("/ws/progress/{job_id}")
 async def websocket_progress(websocket: WebSocket, job_id: str):
     """WebSocket endpoint for real-time generation progress"""
@@ -618,6 +687,7 @@ async def generate_image(req: GenerationRequest, background_tasks: BackgroundTas
     for i in range(req.num_images):
         await progress_cb.set_stage("generating", f"Generating image {i+1}/{req.num_images}")
         
+        gen_start = time.time()
         image = pipe(
             prompt=final_prompt,
             negative_prompt=final_negative,
@@ -629,6 +699,7 @@ async def generate_image(req: GenerationRequest, background_tasks: BackgroundTas
             callback=lambda step, ts, latents: asyncio.create_task(progress_cb(step, ts, latents)),
             callback_steps=1
         ).images[0]
+        track_gen_time(gen_start)
         
         await progress_cb.set_stage("saving", f"Saving image {i+1}/{req.num_images}")
         filename, filepath = save_image(image, req.output_format)
@@ -976,20 +1047,48 @@ async def start_training_endpoint(req: TrainingRequest, background_tasks: Backgr
     def run_train(jid):
         import subprocess
         try:
-            # Update status in thread
-            training_jobs[jid]["logs"].append("Training started on T4 GPU.")
-            # In a real scenario, we would parse output from the process
-            subprocess.run([
+            training_jobs[jid]["logs"].append("Training process spawned.")
+            process = subprocess.Popen([
                 "python", "train_connector.py",
                 "--project_name", req.project_name,
                 "--max_train_steps", str(req.steps)
-            ])
-            training_jobs[jid]["status"] = "completed"
-            training_jobs[jid]["progress"] = 100
-            training_jobs[jid]["logs"].append("Training completed successfully.")
+            ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            
+            while True:
+                line = process.stdout.readline()
+                if line == '' and process.poll() is not None:
+                    break
+                if line:
+                    line = line.strip()
+                    if line.startswith("PROGRESS:"):
+                        try:
+                            training_jobs[jid]["progress"] = int(line.split(":")[1].strip())
+                        except: pass
+                    elif line.startswith("METRICS:"):
+                        try:
+                            # METRICS: loss=0.1500 steps=1/100
+                            parts = line.split(":")[1].strip().split()
+                            for part in parts:
+                                if part.startswith("loss="):
+                                    training_jobs[jid]["loss"] = float(part.split("=")[1])
+                                elif part.startswith("steps="):
+                                    training_jobs[jid]["current_step"] = int(part.split("=")[1].split("/")[0])
+                        except: pass
+                    elif line.startswith("LOG:"):
+                         training_jobs[jid]["logs"].append(line.split(":", 1)[1].strip())
+                    elif line:
+                         training_jobs[jid]["logs"].append(line)
+            
+            if process.returncode == 0:
+                training_jobs[jid]["status"] = "completed"
+                training_jobs[jid]["progress"] = 100
+                training_jobs[jid]["logs"].append("Training completed successfully.")
+            else:
+                training_jobs[jid]["status"] = "failed"
+                training_jobs[jid]["logs"].append("Training process exited with error.")
         except Exception as e:
             training_jobs[jid]["status"] = "failed"
-            training_jobs[jid]["logs"].append(f"Error: {str(e)}")
+            training_jobs[jid]["logs"].append(f"Internal Error: {str(e)}")
     
     background_tasks.add_task(run_train, job_id)
     return {

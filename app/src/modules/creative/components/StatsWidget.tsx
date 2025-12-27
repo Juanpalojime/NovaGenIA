@@ -2,29 +2,36 @@ import React, { useEffect, useState } from 'react'
 import { Activity, TrendingUp, AlertCircle } from 'lucide-react'
 import { useLibraryStore } from '@/modules/estudio/stores/useLibraryStore'
 import { useSystemStore } from '@/store/useSystemStore'
+import { apiFetch } from '@/lib/api'
 
 const StatsWidget: React.FC = () => {
     const { assets, fetchLibrary } = useLibraryStore()
     const { currentJob } = useSystemStore()
-    const [avgGenTime, setAvgGenTime] = useState<string>('--')
+    const [stats, setStats] = useState({
+        avg_gen_time: '--',
+        total_generations: 0,
+        today_generations: 0
+    })
 
     useEffect(() => {
         fetchLibrary()
     }, [fetchLibrary])
 
-    // Calculate average generation time from recent assets
     useEffect(() => {
-        if (assets.length > 0) {
-            // Mock calculation - in a real scenario, you'd track generation times
-            setAvgGenTime('4.2s')
+        const fetchStats = async () => {
+            try {
+                const data = await apiFetch<any>('/api/stats')
+                if (data) setStats(data)
+            } catch (error) {
+                console.error('Error fetching stats:', error)
+            }
         }
+        fetchStats()
     }, [assets])
 
-    const totalGenerations = assets.length
-    const todayGenerations = assets.filter(asset => {
-        const today = new Date().setHours(0, 0, 0, 0)
-        return asset.createdAt >= today
-    }).length
+    const totalGenerations = stats.total_generations || assets.length
+    const todayGenerations = stats.today_generations
+    const avgGenTime = stats.avg_gen_time
 
     return (
         <div className="bg-white/5 border border-white/5 rounded-xl p-4 flex flex-col justify-between h-full">
