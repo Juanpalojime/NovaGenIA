@@ -22,14 +22,19 @@ export async function apiFetch<T = any>(path: string, options?: RequestInit): Pr
         ...options?.headers
     }
 
-    const response = await fetch(`${apiUrl}${path}`, {
-        ...options,
-        headers
-    })
+    try {
+        const response = await fetch(`${apiUrl}${path}`, {
+            ...options,
+            headers
+        })
 
-    if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`)
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.status} ${response.statusText}`)
+        }
+
+        return response.json()
+    } catch (error) {
+        console.error(`[apiFetch] Error fetching ${path}:`, error)
+        throw error
     }
-
-    return response.json()
 }

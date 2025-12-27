@@ -49,11 +49,12 @@ const SystemBoot: React.FC<SystemBootProps> = ({ onComplete }) => {
                 addLog("[GPU] Detecting GPU capabilities...")
                 await new Promise(r => setTimeout(r, 400))
 
-                if (health.gpu.available) {
+                if (health.gpu?.available) {
                     setGpuStatus('online')
                     const gpuName = health.gpu.name || 'GPU'
                     const vramTotal = health.gpu.vram_total ? `${(health.gpu.vram_total / 1024).toFixed(1)}GB` : 'N/A'
                     addLog(`[GPU] ${gpuName} detected (${vramTotal} VRAM)`)
+                    if (health.gpu.name) useSystemStore.getState().setGpuName(health.gpu.name)
 
                     if (health.gpu.vram_total && health.gpu.vram_used) {
                         const vramPercent = (health.gpu.vram_used / health.gpu.vram_total) * 100

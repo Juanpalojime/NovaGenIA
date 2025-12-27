@@ -15,20 +15,35 @@ const ConnectionsSection: React.FC = () => {
         setIsChecking(true)
         try {
             const endpoint = tempEndpoint || apiEndpoint
+            // We use direct fetch here because we might want to test an endpoint 
+            // BEFORE saving it to global store, but we must include bypass headers
             const response = await fetch(`${endpoint}/health`, {
-                headers: { 'ngrok-skip-browser-warning': 'true' }
+                headers: {
+                    'ngrok-skip-browser-warning': 'true',
+                    'Content-Type': 'application/json'
+                }
             })
 
             if (response.ok) {
                 const data = await response.json()
+
+                // Update System Store to reflect live status
+                const systemStore = useSystemStore.getState()
+                systemStore.setConnected(true)
+                if (data.gpu?.available) {
+                    systemStore.setGpuStatus('online')
+                    if (data.gpu.name) systemStore.setGpuName(data.gpu.name)
+                }
+
                 useGlobalStore.getState().addNotification({
                     type: 'success',
-                    message: `✓ Connected to ${data.model || 'NovaGen Backend'}`
+                    message: `✓ Connected to ${data.version || 'NovaGen Backend'}`
                 })
             } else {
                 throw new Error('Connection failed')
             }
         } catch (error) {
+            useSystemStore.getState().setConnected(false)
             useGlobalStore.getState().addNotification({
                 type: 'error',
                 message: 'Connection failed. Check endpoint URL.'
