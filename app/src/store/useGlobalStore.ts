@@ -118,7 +118,7 @@ export const useGlobalStore = create<GlobalState>()(
 
             fetchUserStats: async () => {
                 try {
-                    const stats = await apiFetch<any>('/api/stats');
+                    const stats = await apiFetch<any>('/stats');
                     if (stats) {
                         set((state) => ({
                             user: {

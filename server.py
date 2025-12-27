@@ -602,7 +602,7 @@ def get_aspect_ratios():
     return ratios
 
 
-@app.get("/api/stats")
+@app.get("/stats")
 async def get_system_stats():
     """Returns real generation statistics for the Creative Dashboard"""
     avg_time = sum(generation_stats["times"]) / len(generation_stats["times"]) if generation_stats["times"] else 0
@@ -957,27 +957,6 @@ async def upload_dataset(req: DatasetUploadRequest):
         raise HTTPException(500, f"Upload failed: {str(e)}")
 
 
-@app.get("/gallery")
-def get_gallery():
-    """Get all generated images from outputs directory"""
-    files = sorted(glob("outputs/*.png"), key=os.path.getmtime, reverse=True)
-    assets = []
-    for f in files:
-        filename = os.path.basename(f)
-        stat = os.stat(f)
-        assets.append({
-            "id": filename,
-            "url": f"/outputs/{filename}",
-            "prompt": "Generated Image",
-            "width": 1024,
-            "height": 1024,
-            "createdAt": int(stat.st_mtime * 1000),
-            "tags": ["generated"],
-            "model": "Juggernaut-XL v9",
-            "isFavorite": False,
-            "seed": 0
-        })
-    return assets
 
 @app.post("/enhance-prompt")
 async def enhance_prompt(req: PromptEnhanceRequest):
@@ -1117,10 +1096,6 @@ def get_training_status(job_id: str):
 
 from gpu_manager import gpu_manager
 
-@app.get("/gpu/status")
-def get_gpu_status():
-    """Get GPU status and information"""
-    return gpu_manager.get_status()
 
 # ==================== LoRA Management ====================
 

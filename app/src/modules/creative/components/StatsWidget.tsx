@@ -20,7 +20,7 @@ const StatsWidget: React.FC = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const data = await apiFetch<any>('/api/stats')
+                const data = await apiFetch<any>('/stats')
                 if (data) setStats(data)
             } catch (error) {
                 console.error('Error fetching stats:', error)
