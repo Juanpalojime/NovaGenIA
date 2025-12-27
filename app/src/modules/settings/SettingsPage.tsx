@@ -5,13 +5,15 @@ import ConnectionsSection from './components/ConnectionsSection'
 import ProfileSection from './components/ProfileSection'
 import SystemInfoSection from './components/SystemInfoSection'
 import NotificationsSection from './components/NotificationsSection'
+import StorageSection from './components/StorageSection'
 import { GPUMonitor } from './components/GPUMonitor'
 import { clsx } from 'clsx'
 
 const SettingsPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'connections' | 'system' | 'gpu' | 'notifications'>('appearance')
+    const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'connections' | 'system' | 'gpu' | 'notifications' | 'storage'>('storage')
 
     const tabs = [
+        { id: 'storage', label: 'Storage & Drive', icon: HardDrive },
         { id: 'profile', label: 'My Account', icon: User },
         { id: 'appearance', label: 'Appearance', icon: Palette },
         { id: 'connections', label: 'Connections', icon: Shield },
@@ -68,9 +70,10 @@ const SettingsPage: React.FC = () => {
                         {activeTab === 'profile' && <ProfileSection />}
                         {activeTab === 'appearance' && <AppearanceSection />}
                         {activeTab === 'connections' && <ConnectionsSection />}
-                        {activeTab === 'system' && <SystemInfoSection />}
                         {activeTab === 'gpu' && <GPUMonitor />}
+                        {activeTab === 'system' && <SystemInfoSection />}
                         {activeTab === 'notifications' && <NotificationsSection />}
+                        {activeTab === 'storage' && <StorageSection />}
                     </div>
                 </div>
             </main>

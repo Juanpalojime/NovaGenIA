@@ -63,6 +63,12 @@ from quality_presets import get_all_presets, apply_preset
 from sdxl_styles import get_all_styles, apply_style, get_categories
 from wildcards import process_wildcards, get_available_wildcards
 from vram_optimizer import optimize_for_generation, clear_vram
+import file_manager
+
+# ==================== System Config ====================
+SYSTEM_CONFIG = {
+    "auto_save_drive": False
+}
 
 # ==================== FastAPI Setup ====================
 
@@ -535,7 +541,7 @@ async def websocket_progress(websocket: WebSocket, job_id: str):
 
 
 @app.post("/generate")
-async def generate_image(req: GenerationRequest):
+async def generate_image(req: GenerationRequest, background_tasks: BackgroundTasks):
     if pipe is None: load_model()
     
     # 1. Apply Preset (overrides mode if present)
@@ -569,13 +575,6 @@ async def generate_image(req: GenerationRequest):
 
     # 4. Configure Scheduler/Sampler
     if current_sampler:
-        # Check if it's an advanced sampler from mapping
-        if current_sampler in SAMPLER_MAPPING:
-             # Basic mapping for common ones supported by set_scheduler helper
-             # For advanced ones not in helper, we might need more logic
-             # But set_scheduler currently handles euler_a/dpm_2m_karras
-             # We should update set_scheduler to handle more or map here
-             pass
         set_scheduler(current_sampler)
 
     # 5. VRAM Optimization
@@ -588,7 +587,7 @@ async def generate_image(req: GenerationRequest):
 
     # Create job ID for progress tracking
     job_id = str(uuid.uuid4())
-    progress_cb = get_progress_callback(job_id, steps)
+    progress_cb = get_progress_callback(job_id, current_steps)
     
     # Notify start
     await progress_cb.set_stage("initializing", "Loading model and preparing generation")
@@ -612,6 +611,11 @@ async def generate_image(req: GenerationRequest):
         
         await progress_cb.set_stage("saving", f"Saving image {i+1}/{req.num_images}")
         filename, filepath = save_image(image, req.output_format)
+        
+        # Auto-save to Drive if enabled
+        if SYSTEM_CONFIG["auto_save_drive"]:
+            background_tasks.add_task(file_manager.save_to_drive, filename)
+
         result_images.append({
             "url": f"/outputs/{filename}",
             "path": filepath,
@@ -1052,6 +1056,45 @@ def trigger_vram_optimize():
     """Trigger manual VRAM optimization"""
     clear_vram()
     return {"status": "success", "message": "VRAM optimized and cache cleared"}
+
+@app.post("/system/config")
+def update_system_config(config: dict):
+    """Update system configuration"""
+    global SYSTEM_CONFIG
+    SYSTEM_CONFIG.update(config)
+    return {"status": "success", "config": SYSTEM_CONFIG}
+
+@app.get("/system/config")
+def get_system_config():
+    """Get current system configuration"""
+    return SYSTEM_CONFIG
+
+class BatchZipRequest(BaseModel):
+    filenames: List[str]
+
+@app.post("/gallery/batch-zip")
+def create_batch_zip_endpoint(req: BatchZipRequest):
+    """Create a ZIP file from selected images"""
+    zip_filename = file_manager.create_batch_zip(req.filenames)
+    if not zip_filename:
+        raise HTTPException(500, "Failed to create ZIP file")
+    
+    return {
+        "status": "success", 
+        "zip_url": f"/outputs/{zip_filename}",
+        "filename": zip_filename
+    }
+
+@app.post("/gallery/save-to-drive")
+def manual_save_to_drive(req: BatchZipRequest, background_tasks: BackgroundTasks):
+    """Manually trigger save to Drive for specific files"""
+    if not file_manager.is_drive_mounted():
+         raise HTTPException(400, "Google Drive is not mounted")
+         
+    for filename in req.filenames:
+        background_tasks.add_task(file_manager.save_to_drive, filename)
+        
+    return {"status": "success", "message": "Files queued for Drive save"}
 
 # ==================== Main ====================
 

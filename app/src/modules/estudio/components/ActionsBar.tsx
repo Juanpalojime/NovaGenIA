@@ -33,23 +33,40 @@ const ActionsBar: React.FC = () => {
                 document.body.removeChild(a)
                 addNotification({ type: 'success', message: 'Image exported!' })
             } else {
-                // Multiple images: download each
-                for (const asset of selectedAssets) {
-                    const response = await fetch(asset.url)
-                    const blob = await response.blob()
-                    const url = window.URL.createObjectURL(blob)
+                // Multiple images: Create ZIP via backend
+                addNotification({ type: 'info', message: 'Creating Batch ZIP...' })
+
+                // Get filenames from URLs (assuming standard format /outputs/filename.png)
+                const filenames = selectedAssets.map(a => {
+                    const parts = a.url.split('/')
+                    return parts[parts.length - 1]
+                })
+
+                const res = await fetch(`${getApiUrl()}/gallery/batch-zip`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+                    body: JSON.stringify({ filenames })
+                })
+
+                if (res.ok) {
+                    const data = await res.json()
+                    const zipUrl = `${getApiUrl()}${data.zip_url}`
+
+                    // Trigger download
                     const a = document.createElement('a')
-                    a.href = url
-                    a.download = `novagen-${asset.id}.png`
+                    a.href = zipUrl
+                    a.download = data.filename
                     document.body.appendChild(a)
                     a.click()
-                    window.URL.revokeObjectURL(url)
                     document.body.removeChild(a)
-                    await new Promise(resolve => setTimeout(resolve, 100))
+
+                    addNotification({ type: 'success', message: 'Batch ZIP downloaded!' })
+                } else {
+                    throw new Error("Batch ZIP failed")
                 }
-                addNotification({ type: 'success', message: `${selectedAssets.length} images exported!` })
             }
         } catch (error) {
+            console.error(error)
             addNotification({ type: 'error', message: 'Export failed' })
         }
     }
