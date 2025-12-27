@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uuid
@@ -1085,16 +1086,36 @@ def create_batch_zip_endpoint(req: BatchZipRequest):
         "filename": zip_filename
     }
 
-@app.post("/gallery/save-to-drive")
-def manual_save_to_drive(req: BatchZipRequest, background_tasks: BackgroundTasks):
-    """Manually trigger save to Drive for specific files"""
-    if not file_manager.is_drive_mounted():
-         raise HTTPException(400, "Google Drive is not mounted")
-         
     for filename in req.filenames:
         background_tasks.add_task(file_manager.save_to_drive, filename)
         
     return {"status": "success", "message": "Files queued for Drive save"}
+
+# ==================== Frontend Serving (SPA) ====================
+
+# Mount the 'outputs' directory to be accessible
+app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
+
+# Serve React App (Build)
+# Check if build directory exists
+FRONTEND_BUILD_DIR = "app/dist"
+
+if os.path.exists(FRONTEND_BUILD_DIR):
+    app.mount("/assets", StaticFiles(directory=f"{FRONTEND_BUILD_DIR}/assets"), name="assets")
+    
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Allow API calls to pass through
+        if full_path.startswith("api") or full_path.startswith("docs") or full_path.startswith("openapi.json"):
+             raise HTTPException(status_code=404)
+             
+        # Serve index.html for React Router
+        index_path = os.path.join(FRONTEND_BUILD_DIR, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        return {"error": "Frontend not built"}
+else:
+    print("⚠️ Frontend build not found. Run 'npm run build' in app/ directory.")
 
 # ==================== Main ====================
 
