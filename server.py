@@ -477,13 +477,17 @@ def health_check():
         }
     
     return {
-        "status": "healthy",
+        "status": "online",
         "version": "NovaGen Backend v2.1",
-        "cuda_available": cuda_available,
-        "cuda_version": torch.version.cuda if cuda_available else None,
-        "pytorch_version": torch.__version__,
+        "gpu": {
+            "available": cuda_available,
+            "name": torch.cuda.get_device_name(0) if cuda_available else None,
+            "vram_total": vram_info.get("total_vram_gb"),
+            "vram_used": vram_info.get("allocated_vram_gb")
+        },
         "models": models_status,
-        "vram": vram_info
+        "cuda_available": cuda_available, # Keep for legacy/debug
+        "vram": vram_info # Keep for legacy/debug
     }
 
 @app.get("/modes")
