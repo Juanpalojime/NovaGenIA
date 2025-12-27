@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { HardDrive, Save, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { HardDrive, Save } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 
 export default function StorageSection() {

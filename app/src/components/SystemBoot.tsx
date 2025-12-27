@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Terminal, CheckCircle2, Cpu, Database, Wifi, Shield } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Cpu } from 'lucide-react'
 import { useSystemStore } from '../store/useSystemStore'
 import { clsx } from 'clsx'
 import { checkBackendHealth, startConnectionMonitor } from '../lib/connectionService'
@@ -13,7 +13,6 @@ interface SystemBootProps {
 const SystemBoot: React.FC<SystemBootProps> = ({ onComplete }) => {
     const [logs, setLogs] = useState<string[]>([])
     const [progress, setProgress] = useState(0)
-    const [hasError, setHasError] = useState(false)
     const { setConnected, setGpuStatus, setVramUsage } = useSystemStore()
 
     const addLog = (msg: string) => setLogs(prev => [...prev, msg])
@@ -82,7 +81,6 @@ const SystemBoot: React.FC<SystemBootProps> = ({ onComplete }) => {
                 onComplete()
 
             } catch (error) {
-                setHasError(true)
                 setConnected(false)
                 setGpuStatus('offline')
                 addLog(`[ERROR] Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`)

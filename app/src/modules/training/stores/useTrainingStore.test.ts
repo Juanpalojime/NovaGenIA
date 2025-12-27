@@ -179,7 +179,7 @@ describe('useTrainingStore', () => {
 
     describe('Start Training', () => {
         beforeEach(() => {
-            global.fetch = vi.fn()
+            globalThis.fetch = vi.fn()
         })
 
         it('should prepare dataset before training', async () => {
@@ -194,7 +194,7 @@ describe('useTrainingStore', () => {
             useTrainingStore.getState().addDatasetImages([mockImage])
             useTrainingStore.getState().setConfig({ modelName: 'test-model' })
 
-                ; (global.fetch as any).mockResolvedValue({
+                ; (globalThis.fetch as any).mockResolvedValue({
                     ok: true,
                     json: async () => ({ job_id: 'job-123', status: 'started' })
                 })
@@ -202,13 +202,13 @@ describe('useTrainingStore', () => {
             await useTrainingStore.getState().startTraining()
 
             // Should have called upload and train endpoints
-            expect(global.fetch).toHaveBeenCalled()
+            expect(globalThis.fetch).toHaveBeenCalled()
         })
 
         it('should handle training errors gracefully', async () => {
             useTrainingStore.getState().setConfig({ modelName: 'test-model' })
 
-                ; (global.fetch as any).mockRejectedValue(new Error('Network error'))
+                ; (globalThis.fetch as any).mockRejectedValue(new Error('Network error'))
 
             await useTrainingStore.getState().startTraining()
 
@@ -229,7 +229,7 @@ describe('useTrainingStore', () => {
             useTrainingStore.getState().addDatasetImages([mockImage])
             useTrainingStore.getState().setConfig({ modelName: 'my-model', steps: 1000 })
 
-                ; (global.fetch as any).mockResolvedValue({
+                ; (globalThis.fetch as any).mockResolvedValue({
                     ok: true,
                     json: async () => ({ job_id: 'job-123' })
                 })

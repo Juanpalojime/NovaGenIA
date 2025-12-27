@@ -38,16 +38,16 @@ describe('API Utilities', () => {
     describe('apiFetch', () => {
         beforeEach(() => {
             // Mock global fetch
-            global.fetch = vi.fn()
+            globalThis.fetch = vi.fn()
         })
 
         it('should make fetch request with correct URL', async () => {
             const mockResponse = { ok: true, json: async () => ({ data: 'test' }) }
-                ; (global.fetch as any).mockResolvedValue(mockResponse)
+                ; (globalThis.fetch as any).mockResolvedValue(mockResponse)
 
             await apiFetch('/test-endpoint')
 
-            expect(global.fetch).toHaveBeenCalledWith(
+            expect(globalThis.fetch).toHaveBeenCalledWith(
                 'http://localhost:7860/test-endpoint',
                 expect.objectContaining({
                     headers: expect.objectContaining({
@@ -60,17 +60,17 @@ describe('API Utilities', () => {
 
         it('should include ngrok bypass header', async () => {
             const mockResponse = { ok: true }
-                ; (global.fetch as any).mockResolvedValue(mockResponse)
+                ; (globalThis.fetch as any).mockResolvedValue(mockResponse)
 
             await apiFetch('/health')
 
-            const callArgs = (global.fetch as any).mock.calls[0][1]
+            const callArgs = (globalThis.fetch as any).mock.calls[0][1]
             expect(callArgs.headers['ngrok-skip-browser-warning']).toBe('true')
         })
 
         it('should merge custom headers with defaults', async () => {
             const mockResponse = { ok: true }
-                ; (global.fetch as any).mockResolvedValue(mockResponse)
+                ; (globalThis.fetch as any).mockResolvedValue(mockResponse)
 
             await apiFetch('/test', {
                 headers: {
@@ -78,7 +78,7 @@ describe('API Utilities', () => {
                 }
             })
 
-            const callArgs = (global.fetch as any).mock.calls[0][1]
+            const callArgs = (globalThis.fetch as any).mock.calls[0][1]
             expect(callArgs.headers['ngrok-skip-browser-warning']).toBe('true')
             expect(callArgs.headers['Authorization']).toBe('Bearer token123')
         })
@@ -89,11 +89,11 @@ describe('API Utilities', () => {
             })
 
             const mockResponse = { ok: true }
-                ; (global.fetch as any).mockResolvedValue(mockResponse)
+                ; (globalThis.fetch as any).mockResolvedValue(mockResponse)
 
             await apiFetch('/generate')
 
-            expect(global.fetch).toHaveBeenCalledWith(
+            expect(globalThis.fetch).toHaveBeenCalledWith(
                 'https://my-ngrok.io/generate',
                 expect.any(Object)
             )

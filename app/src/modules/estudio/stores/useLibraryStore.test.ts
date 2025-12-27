@@ -259,7 +259,7 @@ describe('useLibraryStore', () => {
                 }
             ]
 
-            global.fetch = vi.fn().mockResolvedValue({
+            globalThis.fetch = vi.fn().mockResolvedValue({
                 ok: true,
                 json: async () => mockAssets
             })
@@ -270,7 +270,7 @@ describe('useLibraryStore', () => {
         })
 
         it('should handle fetch errors gracefully', async () => {
-            global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
+            globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
 
             await useLibraryStore.getState().fetchLibrary()
 

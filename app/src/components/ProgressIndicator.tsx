@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { GenerationProgress } from '../hooks/useGenerationProgress';
+import type { GenerationProgress } from '../hooks/useGenerationProgress';
 
 interface ProgressIndicatorProps {
     progress: GenerationProgress;

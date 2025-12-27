@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { wsManager, ProgressEvent } from '../lib/websocket';
+import { wsManager, type ProgressEvent } from '../lib/websocket';
 import { useGlobalStore } from '../store/useGlobalStore';
 
 export interface GenerationProgress {
@@ -38,7 +38,7 @@ const initialProgress: GenerationProgress = {
 
 export function useGenerationProgress(jobId: string | null) {
     const [progress, setProgress] = useState<GenerationProgress>(initialProgress);
-    const apiUrl = useGlobalStore((state) => state.apiUrl);
+    const apiUrl = useGlobalStore((state) => state.apiEndpoint);
 
     const handleProgressEvent = useCallback((event: ProgressEvent) => {
         setProgress((prev) => {

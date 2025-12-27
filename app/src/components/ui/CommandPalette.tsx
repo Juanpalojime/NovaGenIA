@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Search, Command, Zap, Layers, Cpu } from 'lucide-react'
+import { Search, Zap, Layers, Cpu } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { clsx } from 'clsx'
 
 const CommandPalette: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false)
