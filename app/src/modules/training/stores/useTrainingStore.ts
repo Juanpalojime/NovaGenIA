@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { useGlobalStore } from '@/store/useGlobalStore'
+import { apiFetch } from '@/lib/api'
 
 export interface TrainingJob {
     id: string
@@ -124,7 +124,6 @@ export const useTrainingStore = create<TrainingState>((set) => ({
 
     startTraining: async () => {
         const state = useTrainingStore.getState()
-        const { apiEndpoint } = useGlobalStore.getState()
 
         try {
             set({
@@ -145,9 +144,8 @@ export const useTrainingStore = create<TrainingState>((set) => ({
                     })
                 }
 
-                await fetch(`${apiEndpoint}/upload-training-image`, {
+                await apiFetch('/upload-training-image', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         image: base64Data,
                         project_name: state.config.modelName,
@@ -161,23 +159,13 @@ export const useTrainingStore = create<TrainingState>((set) => ({
             })
 
             // 2. Call real training API
-            const response = await fetch(`${apiEndpoint}/train`, {
+            const data = await apiFetch('/train', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     project_name: state.config.modelName,
                     steps: state.config.steps,
-                    // learning_rate: state.config.learningRate, // Backend might expect simple args, server.py Request model has steps
-                    // batch_size: state.config.batchSize,
-                    // trigger_word: state.config.triggerWord
                 })
             })
-
-            if (!response.ok) {
-                throw new Error('Training failed to start')
-            }
-
-            const data = await response.json()
 
             set({
                 activeJob: {
@@ -196,8 +184,34 @@ export const useTrainingStore = create<TrainingState>((set) => ({
                 logs: [`[${new Date().toLocaleTimeString()}] Training started: ${state.config.modelName}`]
             })
 
-            // TODO: Implement real-time progress polling from backend
+            // Start status polling
+            const pollStatus = async () => {
+                const currentJob = useTrainingStore.getState().activeJob;
+                if (!currentJob || currentJob.status === 'completed' || currentJob.status === 'failed') return;
 
+                try {
+                    const statusData = await apiFetch(`/train/status?job_id=${currentJob.id}`);
+                    set((state) => ({
+                        activeJob: state.activeJob ? {
+                            ...state.activeJob,
+                            status: statusData.status,
+                            progress: statusData.progress,
+                            currentStep: statusData.current_step,
+                            loss: statusData.loss,
+                            elapsedTime: statusData.elapsed_time
+                        } : null,
+                        logs: statusData.logs ? [...state.logs, ...statusData.logs] : state.logs
+                    }));
+
+                    if (statusData.status !== 'completed' && statusData.status !== 'failed') {
+                        setTimeout(pollStatus, 3000);
+                    }
+                } catch (error) {
+                    console.error('Polling error:', error);
+                }
+            };
+
+            pollStatus();
         } catch (error) {
             console.error('Training error:', error)
             set({

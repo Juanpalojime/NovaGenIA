@@ -6,6 +6,7 @@
  */
 
 import { create } from 'zustand';
+import { apiFetch } from '@/lib/api';
 
 export interface ModelInfo {
     id: string;
@@ -68,13 +69,10 @@ export const useModelHubStore = create<ModelHubStore>((set, get) => ({
     searchModels: async (query: string, type: string) => {
         set({ searching: true });
         try {
-            const response = await fetch('/api/hub/search', {
+            const results = await apiFetch('/api/hub/search', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query, model_type: type, limit: 20 }),
             });
-            if (!response.ok) throw new Error('Search failed');
-            const results = await response.json();
             set({ searchResults: results, searching: false });
         } catch (error) {
             console.error('Search error:', error);
@@ -94,14 +92,10 @@ export const useModelHubStore = create<ModelHubStore>((set, get) => ({
         set({ activeDownloads: new Map(activeDownloads) });
 
         try {
-            const response = await fetch('/api/hub/download', {
+            const result = await apiFetch('/api/hub/download', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ model_id: modelId, model_type: type }),
             });
-
-            if (!response.ok) throw new Error('Download failed');
-            const result = await response.json();
 
             if (result.success) {
                 activeDownloads.set(modelId, {
@@ -135,9 +129,7 @@ export const useModelHubStore = create<ModelHubStore>((set, get) => ({
     fetchInstalled: async () => {
         set({ loadingInstalled: true });
         try {
-            const response = await fetch('/api/hub/installed');
-            if (!response.ok) throw new Error('Failed to fetch installed models');
-            const models = await response.json();
+            const models = await apiFetch('/api/hub/installed');
             set({ installedModels: models, loadingInstalled: false });
         } catch (error) {
             console.error('Error fetching installed models:', error);
@@ -147,10 +139,9 @@ export const useModelHubStore = create<ModelHubStore>((set, get) => ({
 
     deleteModel: async (path: string) => {
         try {
-            const response = await fetch(`/api/hub/models/${encodeURIComponent(path)}`, {
+            await apiFetch(`/api/hub/models/${encodeURIComponent(path)}`, {
                 method: 'DELETE',
             });
-            if (!response.ok) throw new Error('Delete failed');
 
             // Refresh installed models
             get().fetchInstalled();

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getApiUrl } from '../../../lib/api'
+import { apiFetch, getApiUrl } from '@/lib/api'
 
 export interface Asset {
     id: string
@@ -56,22 +56,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     fetchLibrary: async () => {
         try {
             const apiUrl = getApiUrl();
-            const response = await fetch(`${apiUrl}/gallery`, {
-                headers: {
-                    'ngrok-skip-browser-warning': 'true'
-                }
-            });
-            if (response.ok) {
-                const data = await response.json();
-                // Prepend API URL to relative image paths
-                const assetsWithFullUrls = data.map((asset: Asset) => ({
-                    ...asset,
-                    url: asset.url.startsWith('http') ? asset.url : `${apiUrl}${asset.url}`
-                }));
-                set({ assets: assetsWithFullUrls });
-            } else {
-                console.error("Failed to fetch library");
-            }
+            const data = await apiFetch('/gallery');
+
+            // Prepend API URL to relative image paths
+            const assetsWithFullUrls = data.map((asset: Asset) => ({
+                ...asset,
+                url: asset.url.startsWith('http') ? asset.url : `${apiUrl}${asset.url}`
+            }));
+            set({ assets: assetsWithFullUrls });
         } catch (error) {
             console.error("Error fetching library:", error);
         }

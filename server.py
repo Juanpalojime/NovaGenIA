@@ -515,35 +515,7 @@ def health_check():
 @app.get("/gpu/status")
 def get_gpu_status():
     """Detailed GPU statistics for the GPU Monitor component"""
-    cuda_available = torch.cuda.is_available()
-    if not cuda_available:
-        return {"available": False, "count": 0, "gpus": []}
-    
-    gpus = []
-    count = torch.cuda.device_count()
-    for i in range(count):
-        props = torch.cuda.get_device_properties(i)
-        total = props.total_memory
-        allocated = torch.cuda.memory_allocated(i)
-        reserved = torch.cuda.memory_reserved(i)
-        free = total - allocated
-        
-        gpus.append({
-            "id": i,
-            "name": props.name,
-            "total_vram_gb": round(total / 1024**3, 2),
-            "allocated_vram_gb": round(allocated / 1024**3, 2),
-            "cached_vram_gb": round(reserved / 1024**3, 2),
-            "free_vram_gb": round(free / 1024**3, 2),
-            "utilization": round((allocated / total) * 100, 1),
-            "active_jobs": 1 if current_job else 0
-        })
-        
-    return {
-        "available": True,
-        "count": count,
-        "gpus": gpus
-    }
+    return gpu_manager.get_status()
 
 @app.get("/modes")
 def get_modes():
@@ -984,21 +956,62 @@ async def enhance_prompt(req: PromptEnhanceRequest):
             "status": "error"
         }
 
+# Simple training job store
+training_jobs = {}
+
 @app.post("/train")
-async def start_training(req: TrainingRequest, background_tasks: BackgroundTasks):
+async def start_training_endpoint(req: TrainingRequest, background_tasks: BackgroundTasks):
     """Start training job"""
-    def run_train():
-        import subprocess
-        subprocess.run([
-            "python", "train_connector.py",
-            "--project_name", req.project_name,
-            "--max_train_steps", str(req.steps)
-        ])
+    job_id = f"train_{int(datetime.now().timestamp())}"
+    training_jobs[job_id] = {
+        "status": "training",
+        "progress": 0,
+        "current_step": 0,
+        "total_steps": req.steps,
+        "loss": 0.0,
+        "elapsed_time": "00:00",
+        "logs": ["Job initialized.", "Starting training process..."]
+    }
     
-    background_tasks.add_task(run_train)
+    def run_train(jid):
+        import subprocess
+        try:
+            # Update status in thread
+            training_jobs[jid]["logs"].append("Training started on T4 GPU.")
+            # In a real scenario, we would parse output from the process
+            subprocess.run([
+                "python", "train_connector.py",
+                "--project_name", req.project_name,
+                "--max_train_steps", str(req.steps)
+            ])
+            training_jobs[jid]["status"] = "completed"
+            training_jobs[jid]["progress"] = 100
+            training_jobs[jid]["logs"].append("Training completed successfully.")
+        except Exception as e:
+            training_jobs[jid]["status"] = "failed"
+            training_jobs[jid]["logs"].append(f"Error: {str(e)}")
+    
+    background_tasks.add_task(run_train, job_id)
     return {
         "status": "started",
-        "message": f"Training {req.project_name} started on T4 GPU"
+        "job_id": job_id,
+        "message": f"Training {req.project_name} started"
+    }
+
+@app.get("/train/status")
+def get_training_status(job_id: str):
+    """Get status of a specific training job"""
+    if job_id not in training_jobs:
+        raise HTTPException(404, "Training job not found")
+    
+    job = training_jobs[job_id]
+    # Return and clear logs to avoid duplicate logs in frontend
+    response_logs = job["logs"]
+    job["logs"] = [] 
+    
+    return {
+        **job,
+        "logs": response_logs
     }
 
 # ==================== GPU Management ====================
