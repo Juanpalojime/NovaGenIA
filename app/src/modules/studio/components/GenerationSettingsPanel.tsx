@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Zap, Palette, ChevronDown, ChevronUp, Settings2, Play, Sparkles } from 'lucide-react'
+import { Zap, Palette, ChevronDown, ChevronUp, Settings2, Play, Sparkles, Image as ImageIcon } from 'lucide-react'
 import { clsx } from 'clsx'
 import { apiFetch } from '../../../lib/api' // Use api.ts directly if it has what we need, or utils if we moved it
 // Just use api.ts as seen in PromptConsole
@@ -24,6 +24,8 @@ export const GenerationSettingsPanel: React.FC<GenerationSettingsPanelProps> = (
     const [cfg, setCfg] = useState<number>(7.0)
     const [wildcards, setWildcards] = useState<boolean>(true)
     const [isGenerating, setIsGenerating] = useState(false)
+
+    const [outputFormat, setOutputFormat] = useState<'png' | 'jpg'>('png')
 
     // UI State
     const [showAdvanced, setShowAdvanced] = useState(false)
@@ -61,16 +63,17 @@ export const GenerationSettingsPanel: React.FC<GenerationSettingsPanelProps> = (
             sampler: activeSampler,
             steps,
             guidance_scale: cfg,
-            use_wildcards: wildcards
+            use_wildcards: wildcards,
+            output_format: outputFormat
         })
-    }, [prompt, activePreset, activeStyle, activeSampler, steps, cfg, wildcards])
+    }, [prompt, activePreset, activeStyle, activeSampler, steps, cfg, wildcards, outputFormat])
 
     const handleGenerate = async () => {
         if (!prompt.trim()) return
         setIsGenerating(true)
 
         try {
-            const response = await apiFetch('/generate', {
+            const response = await apiFetch<any>('/generate', {
                 method: 'POST',
                 body: JSON.stringify({
                     prompt,
@@ -80,16 +83,17 @@ export const GenerationSettingsPanel: React.FC<GenerationSettingsPanelProps> = (
                     steps,
                     guidance_scale: cfg,
                     use_wildcards: wildcards,
+                    output_format: outputFormat,
                     // Default dimensions for now or grab from canvas store if possible
                     width: 1024,
                     height: 1024
                 })
             })
 
-            if (response.ok) {
+            if (response && response.job_id) {
                 // Trigger global event or store update
                 // For now just log
-                console.log("Generation started")
+                console.log("Generation started", response.job_id)
             }
         } catch (e) {
             console.error("Generation failed", e)
@@ -195,6 +199,30 @@ export const GenerationSettingsPanel: React.FC<GenerationSettingsPanelProps> = (
                             </option>
                         ))}
                     </select>
+                </div>
+
+                {/* Output Format */}
+                <div className="space-y-3 pt-2 border-t border-white/5">
+                    <label className="text-xs text-gray-400 font-medium flex items-center gap-2">
+                        <ImageIcon size={12} className="text-neon-cyan" />
+                        Output Format
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                        {(['png', 'jpg'] as const).map(fmt => (
+                            <button
+                                key={fmt}
+                                onClick={() => setOutputFormat(fmt)}
+                                className={clsx(
+                                    "p-2 rounded-lg border text-center text-[10px] font-bold uppercase transition-all",
+                                    outputFormat === fmt
+                                        ? "bg-neon-cyan/20 border-neon-cyan text-white"
+                                        : "bg-white/5 border-transparent hover:bg-white/10 text-gray-500"
+                                )}
+                            >
+                                {fmt} {fmt === 'png' ? '(Lossless)' : '(Compressed)'}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Advanced Toggle */}

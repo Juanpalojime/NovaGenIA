@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Send, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import { Send, Sparkles, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGenerationStore } from '../stores/useGenerationStore'
 import { useSystemStore } from '@/store/useSystemStore'
@@ -19,7 +19,8 @@ export const GenerationPanel: React.FC = () => {
         setAspectRatio,
         setSeed,
         toggleSeedLock,
-        randomizeSeed
+        randomizeSeed,
+        setOutputFormat
     } = useGenerationStore()
 
     const { addNotification } = useGlobalStore()
@@ -303,12 +304,37 @@ export const GenerationPanel: React.FC = () => {
                 </div>
 
                 {/* Right Column */}
-                <div>
+                <div className="flex flex-col gap-4">
                     <AspectRatioSelector
                         value={params.aspectRatio}
                         onChange={setAspectRatio}
                         configs={aspectRatioConfigs}
                     />
+
+                    {/* Output Format Selector */}
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                        <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-3 block flex items-center gap-2">
+                            <ImageIcon size={14} className="text-neon-cyan" />
+                            Output Format
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {(['png', 'jpg'] as const).map(fmt => (
+                                <button
+                                    key={fmt}
+                                    onClick={() => setOutputFormat(fmt)}
+                                    className={`
+                                        py-2 rounded-lg text-[10px] font-bold uppercase transition-all border
+                                        ${params.outputFormat === fmt
+                                            ? 'bg-neon-cyan/20 border-neon-cyan text-white shadow-[0_0_10px_rgba(0,243,255,0.2)]'
+                                            : 'bg-black/40 border-transparent text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                                        }
+                                    `}
+                                >
+                                    {fmt} {fmt === 'png' ? '(Lossless)' : '(Compressed)'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

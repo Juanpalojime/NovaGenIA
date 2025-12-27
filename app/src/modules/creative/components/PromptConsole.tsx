@@ -20,7 +20,7 @@ const PromptConsole: React.FC = () => {
     const { addNotification } = useGlobalStore()
     const { startJob, updateJobProgress, completeJob, currentJob } = useSystemStore()
     const { addAssets } = useLibraryStore()
-    const { params, getFullPrompt, magicPromptMode, setMagicPromptMode } = useGenerationStore()
+    const { params, getFullPrompt, magicPromptMode, setMagicPromptMode, setOutputFormat } = useGenerationStore()
 
     // Local State
     const [input, setInput] = useState('')
@@ -104,7 +104,8 @@ const PromptConsole: React.FC = () => {
                     num_images: 1,
                     steps: params.steps,
                     guidance_scale: params.guidanceScale,
-                    seed: params.seed
+                    seed: params.seed,
+                    output_format: params.outputFormat
                 })
             })
 
@@ -326,6 +327,23 @@ const PromptConsole: React.FC = () => {
                                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-black border border-white/10 rounded text-[10px] text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                                     Prompt Library
                                 </div>
+                            </div>
+
+                            {/* Output Format Selector */}
+                            <div className="flex gap-1 bg-black/40 rounded-lg p-1">
+                                {(['png', 'jpg'] as const).map(fmt => (
+                                    <button
+                                        key={fmt}
+                                        onClick={() => setOutputFormat(fmt)}
+                                        className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all ${params.outputFormat === fmt
+                                            ? 'bg-neon-cyan/20 text-neon-cyan'
+                                            : 'text-gray-500 hover:text-gray-300'
+                                            }`}
+                                        title={fmt === 'png' ? 'Lossless quality' : 'Smaller file size'}
+                                    >
+                                        {fmt}
+                                    </button>
+                                ))}
                             </div>
 
                             {/* Image Upload Button */}

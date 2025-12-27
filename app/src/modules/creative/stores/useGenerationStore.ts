@@ -84,7 +84,7 @@ export interface GenerationParams {
     steps?: number
     guidanceScale?: number
     numImages: number
-    outputFormat: 'png' | 'jpeg' | 'webp'
+    outputFormat: 'png' | 'jpg' | 'webp'
     width: number
     height: number
     // Preset params
@@ -123,7 +123,7 @@ interface GenerationState {
     setSteps: (steps: number) => void
     setGuidanceScale: (scale: number) => void
     setNumImages: (num: number) => void
-    setOutputFormat: (format: 'png' | 'jpeg' | 'webp') => void
+    setOutputFormat: (format: 'png' | 'jpg' | 'webp') => void
 
     // Img2Img & ControlNet Setters
     setInitImage: (image: string | undefined) => void

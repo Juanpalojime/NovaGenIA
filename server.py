@@ -446,11 +446,26 @@ async def startup_event():
 
 def save_image(image, output_format="png"):
     timestamp = int(time.time() * 1000)
-    ext = output_format.lower()
-    if ext == "jpg": ext = "jpeg"
+    fmt = output_format.lower()
+    
+    # Standardize format and extension
+    if fmt in ["jpg", "jpeg"]:
+        ext = "jpg"
+        pil_format = "JPEG"
+        save_params = {"quality": 95, "subsampling": 0}
+    else:
+        ext = "png"
+        pil_format = "PNG"
+        save_params = {"optimize": True}
+        
     filename = f"gen_{timestamp}.{ext}"
     filepath = os.path.join("outputs", filename)
-    image.save(filepath, format=output_format.upper())
+    
+    # Ensure image is in RGB for JPEG
+    if pil_format == "JPEG" and image.mode != "RGB":
+        image = image.convert("RGB")
+        
+    image.save(filepath, format=pil_format, **save_params)
     return filename, filepath
 
 # ==================== Endpoints ====================
