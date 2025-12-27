@@ -3,22 +3,31 @@ import torch
 import uvicorn
 import base64
 import time
+import asyncio
 from io import BytesIO
 from glob import glob
 from enum import Enum
 from typing import Optional, Dict, List
 from dataclasses import dataclass
 
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import uuid
 
 from diffusers import (
     StableDiffusionXLPipeline,
     StableDiffusionXLImg2ImgPipeline,
     DPMSolverMultistepScheduler,
+    DPMSolverSinglestepScheduler,
+    EulerAncestralDiscreteScheduler,
+    EulerDiscreteScheduler,
+    DDIMScheduler,
+    UniPCMultistepScheduler,
+    LCMScheduler,
     StableDiffusionXLControlNetPipeline,
+    ControlNetModel,
     StableDiffusionUpscalePipeline
 )
 from transformers import (
@@ -30,9 +39,30 @@ from transformers import (
 import cv2
 import numpy as np
 from PIL import Image
-import insightface
-from insightface.app import FaceAnalysis
-from controlnet_aux import CannyDetector, ContentShuffleDetector
+try:
+    import insightface
+    from insightface.app import FaceAnalysis
+except ImportError:
+    insightface = None
+    FaceAnalysis = None
+    print("Warning: InsightFace not installed. Face Swap will be unavailable.")
+
+try:
+    from controlnet_aux import CannyDetector, ContentShuffleDetector
+except ImportError:
+    CannyDetector = None
+    ContentShuffleDetector = None
+    print("Warning: ControlNet Aux not installed. Preprocessors will be unavailable.")
+
+# Import WebSocket manager
+from websocket_manager import manager as ws_manager, get_progress_callback
+
+# Import Advanced Features (Fooocus/SD WebUI)
+from advanced_samplers import get_all_samplers, get_sampler_config, SAMPLER_MAPPING
+from quality_presets import get_all_presets, apply_preset
+from sdxl_styles import get_all_styles, apply_style, get_categories
+from wildcards import process_wildcards, get_available_wildcards
+from vram_optimizer import optimize_for_generation, clear_vram
 
 # ==================== FastAPI Setup ====================
 
@@ -290,10 +320,25 @@ def load_blip_model():
             print(f"⚠️ Error cargando BLIP: {e}")
 
 def set_scheduler(sampler: str):
+    if not pipe: return
+    config = pipe.scheduler.config
+    
     if sampler == "euler_a":
-        pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
+        pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(config)
+    elif sampler == "euler":
+        pipe.scheduler = EulerDiscreteScheduler.from_config(config)
     elif sampler == "dpm_2m_karras":
-        pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, use_karras_sigmas=True)
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(config, use_karras_sigmas=True)
+    elif sampler == "dpm_2m_sde_karras":
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(config, use_karras_sigmas=True, algorithm_type="sde-dpmsolver++")
+    elif sampler == "dpm_sde_karras":
+        pipe.scheduler = DPMSolverSinglestepScheduler.from_config(config, use_karras_sigmas=True)
+    elif sampler == "ddim":
+        pipe.scheduler = DDIMScheduler.from_config(config)
+    elif sampler == "unipc":
+        pipe.scheduler = UniPCMultistepScheduler.from_config(config)
+    elif sampler == "lcm":
+        pipe.scheduler = LCMScheduler.from_config(config)
 
 def preprocess_control_image(image: Image.Image, type: str):
     image_np = np.array(image)
@@ -332,6 +377,10 @@ class GenerationRequest(BaseModel):
     steps: Optional[int] = None
     cfg_scale: Optional[float] = None
     guidance_scale: Optional[float] = None
+    sampler: Optional[str] = None
+    preset_id: Optional[str] = None
+    style_id: Optional[str] = None
+    use_wildcards: bool = False
 
 class Img2ImgRequest(BaseModel):
     prompt: str
@@ -369,6 +418,10 @@ class DatasetUploadRequest(BaseModel):
     project_name: str
     filename: str
 
+class TrainingRequest(BaseModel):
+    project_name: str
+    steps: int = 1000
+
 class PromptEnhanceRequest(BaseModel):
     prompt: str
 
@@ -401,34 +454,159 @@ def read_root():
     status = "online" if pipe else "loading"
     return {"status": status, "model": "Juggernaut-XL v9", "version": "NovaGen Backend v2.1"}
 
-# ... (Health Check, Modes, Aspect Ratios omitted for brevity, logic remains same) ...
+@app.get("/health")
+def health_check():
+    """Detailed health check with model status and system info"""
+    models_status = {
+        "base_model": pipe is not None,
+        "img2img": img2img_pipe is not None,
+        "controlnet": controlnet_pipe is not None,
+        "upscaler": upscale_pipe is not None,
+        "phi3": phi3_pipe is not None,
+        "blip": blip_model is not None,
+        "face_swap": face_swapper is not None
+    }
+    
+    cuda_available = torch.cuda.is_available()
+    vram_info = {}
+    if cuda_available:
+        vram_info = {
+            "total_vram_gb": round(torch.cuda.get_device_properties(0).total_memory / 1024**3, 2),
+            "allocated_vram_gb": round(torch.cuda.memory_allocated(0) / 1024**3, 2),
+            "cached_vram_gb": round(torch.cuda.memory_reserved(0) / 1024**3, 2)
+        }
+    
+    return {
+        "status": "healthy",
+        "version": "NovaGen Backend v2.1",
+        "cuda_available": cuda_available,
+        "cuda_version": torch.version.cuda if cuda_available else None,
+        "pytorch_version": torch.__version__,
+        "models": models_status,
+        "vram": vram_info
+    }
+
+@app.get("/modes")
+def get_modes():
+    """Get available generation modes with configurations"""
+    modes = {}
+    for mode, config in MODE_CONFIGS.items():
+        modes[mode.value] = {
+            "steps": config["steps"],
+            "sampler": config["sampler"],
+            "cfg_scale": config["cfg_scale"],
+            "description": config["description"]
+        }
+    return modes
+
+@app.get("/aspect-ratios")
+def get_aspect_ratios():
+    """Get available aspect ratios with configurations"""
+    ratios = {}
+    for ratio_key, config in ASPECT_RATIOS.items():
+        ratios[ratio_key] = {
+            "name": config.name,
+            "ratio": config.ratio,
+            "width": config.width,
+            "height": config.height,
+            "category": config.category,
+            "recommended_steps": config.recommended_steps
+        }
+    return ratios
+
+
+@app.websocket("/ws/progress/{job_id}")
+async def websocket_progress(websocket: WebSocket, job_id: str):
+    """WebSocket endpoint for real-time generation progress"""
+    await ws_manager.connect(websocket, job_id)
+    try:
+        while True:
+            # Keep connection alive and wait for messages
+            data = await websocket.receive_text()
+            # Client can send ping to keep alive
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        await ws_manager.disconnect(websocket, job_id)
+
 
 @app.post("/generate")
 async def generate_image(req: GenerationRequest):
     if pipe is None: load_model()
-    mode_config = MODE_CONFIGS[req.mode]
-    ar_config = get_aspect_ratio_config(req.aspect_ratio)
     
-    steps = req.steps if req.steps else mode_config["steps"]
-    cfg_scale = req.guidance_scale if req.guidance_scale else mode_config["cfg_scale"]
-    set_scheduler(mode_config["sampler"])
+    # 1. Apply Preset (overrides mode if present)
+    current_steps = req.steps
+    current_cfg = req.guidance_scale or req.cfg_scale
+    current_sampler = req.sampler
+    
+    if req.preset_id:
+        req_dict = req.dict()
+        req_dict = apply_preset(req.preset_id, req_dict)
+        if not current_steps: current_steps = req_dict["steps"]
+        if not current_cfg: current_cfg = req_dict["guidance_scale"]
+        if not current_sampler: current_sampler = req_dict["sampler"]
+
+    # If no preset/manual, fall back to mode defaults
+    if not current_steps or not current_cfg or not current_sampler:
+        mode_config = MODE_CONFIGS[req.mode]
+        if not current_steps: current_steps = mode_config["steps"]
+        if not current_cfg: current_cfg = mode_config["cfg_scale"]
+        if not current_sampler: current_sampler = mode_config["sampler"]
+
+    # 2. Process Wildcards
+    final_prompt = req.prompt
+    if req.use_wildcards:
+        final_prompt = process_wildcards(final_prompt)
+
+    # 3. Apply Style
+    final_negative = req.negative_prompt
+    if req.style_id:
+        final_prompt, final_negative = apply_style(final_prompt, final_negative, req.style_id)
+
+    # 4. Configure Scheduler/Sampler
+    if current_sampler:
+        # Check if it's an advanced sampler from mapping
+        if current_sampler in SAMPLER_MAPPING:
+             # Basic mapping for common ones supported by set_scheduler helper
+             # For advanced ones not in helper, we might need more logic
+             # But set_scheduler currently handles euler_a/dpm_2m_karras
+             # We should update set_scheduler to handle more or map here
+             pass
+        set_scheduler(current_sampler)
+
+    # 5. VRAM Optimization
+    optimize_for_generation(pipe)
+
+    ar_config = get_aspect_ratio_config(req.aspect_ratio)
     
     generator = torch.Generator("cuda").manual_seed(req.seed) if req.seed != -1 else torch.Generator("cuda")
     used_seed = req.seed if req.seed != -1 else generator.initial_seed()
 
+    # Create job ID for progress tracking
+    job_id = str(uuid.uuid4())
+    progress_cb = get_progress_callback(job_id, steps)
+    
+    # Notify start
+    await progress_cb.set_stage("initializing", "Loading model and preparing generation")
+
     # Generate Batch
     result_images = []
     for i in range(req.num_images):
+        await progress_cb.set_stage("generating", f"Generating image {i+1}/{req.num_images}")
+        
         image = pipe(
-            prompt=req.prompt,
-            negative_prompt=req.negative_prompt,
-            num_inference_steps=steps,
-            guidance_scale=cfg_scale,
+            prompt=final_prompt,
+            negative_prompt=final_negative,
+            num_inference_steps=current_steps,
+            guidance_scale=current_cfg,
             width=ar_config.width,
             height=ar_config.height,
-            generator=generator
+            generator=generator,
+            callback=lambda step, ts, latents: asyncio.create_task(progress_cb(step, ts, latents)),
+            callback_steps=1
         ).images[0]
         
+        await progress_cb.set_stage("saving", f"Saving image {i+1}/{req.num_images}")
         filename, filepath = save_image(image, req.output_format)
         result_images.append({
             "url": f"/outputs/{filename}",
@@ -438,7 +616,10 @@ async def generate_image(req: GenerationRequest):
             "height": ar_config.height
         })
     
+    await progress_cb.complete(success=True, message="Generation complete", images=len(result_images))
+    
     return {
+        "job_id": job_id,
         "images": result_images,
         "model": "Juggernaut-XL v9",
         "status": "success"
@@ -588,7 +769,75 @@ async def face_swap(req: FaceSwapRequest):
         print(f"FaceSwap error: {e}")
         raise HTTPException(500, f"FaceSwap failed: {str(e)}")
 
-# ... (Existing endpoints like /upscale need to be updated to use save_image helper) ...
+
+@app.post("/upscale")
+async def upscale_image(req: UpscaleRequest):
+    """Upscale image using Stable Diffusion x4 Upscaler"""
+    if upscale_pipe is None:
+        load_upscaler_model()
+    
+    if upscale_pipe is None:
+        raise HTTPException(500, "Upscaler model not available")
+    
+    try:
+        # Decode image
+        image_data = base64.b64decode(req.image.split(',')[1] if ',' in req.image else req.image)
+        init_image = Image.open(BytesIO(image_data)).convert("RGB")
+        
+        # Upscale
+        upscaled = upscale_pipe(
+            prompt=req.prompt,
+            image=init_image,
+            num_inference_steps=25
+        ).images[0]
+        
+        # Save
+        filename, filepath = save_image(upscaled, req.output_format)
+        
+        return {
+            "image": {
+                "url": f"/outputs/{filename}",
+                "seed": 0
+            },
+            "status": "success"
+        }
+    except Exception as e:
+        print(f"Upscale error: {e}")
+        raise HTTPException(500, f"Upscale failed: {str(e)}")
+
+@app.post("/interrogate")
+async def interrogate_image(req: InterrogateRequest):
+    """Generate caption for image using BLIP"""
+    if blip_model is None:
+        load_blip_model()
+    
+    if blip_model is None:
+        return {"caption": "", "error": "BLIP model not available"}
+    
+    try:
+        # Decode image
+        image_data = base64.b64decode(req.image.split(',')[1] if ',' in req.image else req.image)
+        image = Image.open(BytesIO(image_data)).convert("RGB")
+        
+        # Generate caption
+        inputs = blip_processor(image, return_tensors="pt").to(blip_model.device)
+        out = blip_model.generate(**inputs, max_length=50)
+        caption = blip_processor.decode(out[0], skip_special_tokens=True)
+        
+        return {
+            "caption": caption,
+            "status": "success"
+        }
+    except Exception as e:
+        print(f"Interrogate error: {e}")
+        return {
+            "caption": "",
+            "error": str(e),
+            "status": "error"
+        }
+
+@app.post("/dataset/upload")
+async def upload_dataset(req: DatasetUploadRequest):
     """Save training image to project folder"""
     try:
         # Create dataset dir
@@ -606,6 +855,7 @@ async def face_swap(req: FaceSwapRequest):
     except Exception as e:
         print(f"Dataset upload error: {e}")
         raise HTTPException(500, f"Upload failed: {str(e)}")
+
 
 @app.get("/gallery")
 def get_gallery():
@@ -693,6 +943,111 @@ async def start_training(req: TrainingRequest, background_tasks: BackgroundTasks
         "status": "started",
         "message": f"Training {req.project_name} started on T4 GPU"
     }
+
+# ==================== GPU Management ====================
+
+from gpu_manager import gpu_manager
+
+@app.get("/gpu/status")
+def get_gpu_status():
+    """Get GPU status and information"""
+    return gpu_manager.get_status()
+
+# ==================== LoRA Management ====================
+
+from lora_manager import lora_manager
+
+@app.get("/loras")
+def get_loras():
+    """Get all available LoRAs"""
+    return lora_manager.get_all_loras()
+
+@app.get("/loras/{lora_id}")
+def get_lora_details(lora_id: str):
+    """Get details for a specific LoRA"""
+    lora = lora_manager.get_lora(lora_id)
+    if not lora:
+        raise HTTPException(404, f"LoRA {lora_id} not found")
+    return lora
+
+class LoRASearchRequest(BaseModel):
+    query: str = ""
+    tags: List[str] = []
+
+@app.post("/loras/search")
+def search_loras(req: LoRASearchRequest):
+    """Search LoRAs by query and tags"""
+    return lora_manager.search_loras(req.query, req.tags)
+
+# ==================== Model Hub ====================
+
+from model_hub import model_hub
+
+class ModelSearchRequest(BaseModel):
+    query: str = ""
+    model_type: str = "all"
+    limit: int = 20
+
+class ModelDownloadRequest(BaseModel):
+    model_id: str
+    model_type: str = "checkpoint"
+
+@app.post("/hub/search")
+def search_models(req: ModelSearchRequest):
+    """Search models on Hugging Face Hub"""
+    return model_hub.search_models(req.query, req.model_type, req.limit)
+
+@app.post("/hub/download")
+async def download_model(req: ModelDownloadRequest):
+    """Download a model from Hugging Face Hub"""
+    result = await model_hub.download_model(req.model_id, req.model_type)
+    return result
+
+@app.get("/hub/installed")
+def get_installed_models():
+    """Get list of installed models"""
+    return model_hub.get_installed_models()
+
+@app.delete("/hub/models/{model_path:path}")
+def delete_model(model_path: str):
+    """Delete an installed model"""
+    success = model_hub.delete_model(model_path)
+    if success:
+        return {"status": "success", "message": "Model deleted"}
+    raise HTTPException(500, "Failed to delete model")
+
+# ==================== Advanced Features Endpoints ====================
+
+@app.get("/features/samplers")
+def get_samplers():
+    """Get all available samplers including advanced ones"""
+    return get_all_samplers()
+
+@app.get("/features/presets")
+def get_presets():
+    """Get all quality presets"""
+    return get_all_presets()
+
+@app.get("/features/styles")
+def get_styles():
+    """Get all SDXL styles"""
+    return get_all_styles()
+
+@app.get("/features/styles/categories")
+def get_style_categories():
+    """Get style categories"""
+    return get_categories()
+
+@app.get("/features/wildcards")
+def get_wildcards():
+    """Get available wildcards"""
+    return get_available_wildcards()
+
+@app.post("/system/vram-optimize")
+def trigger_vram_optimize():
+    """Trigger manual VRAM optimization"""
+    clear_vram()
+    return {"status": "success", "message": "VRAM optimized and cache cleared"}
 
 # ==================== Main ====================
 

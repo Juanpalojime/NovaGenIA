@@ -24,6 +24,7 @@ models/checkpoints/*.ckpt
 *.pth
 *.pt
 output/
+outputs/
 
 # Logs
 *.log

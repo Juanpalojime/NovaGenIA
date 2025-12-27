@@ -18,7 +18,11 @@ const LayerManager: React.FC = () => {
     }
 
     return (
-        <div className="absolute right-6 top-6 w-72 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl z-30 overflow-hidden flex flex-col max-h-[calc(100vh-3rem)]">
+        <div className={clsx(
+            "bg-black/60 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl z-30 overflow-hidden flex flex-col max-h-[calc(100vh-3rem)]",
+            "md:absolute md:right-6 md:top-6 md:w-72", // Desktop fixed
+            "w-full h-full static" // Mobile fill
+        )}>
             <div className="p-3 border-b border-white/10 flex justify-between items-center bg-white/5 shrink-0">
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-gray-400">AI Layers</span>

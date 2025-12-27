@@ -1,20 +1,22 @@
 import React, { useState } from 'react'
-import { User, Settings as SettingsIcon, Shield, Palette, HardDrive, Bell } from 'lucide-react'
+import { User, Settings as SettingsIcon, Shield, Palette, HardDrive, Bell, Cpu } from 'lucide-react'
 import AppearanceSection from './components/AppearanceSection'
 import ConnectionsSection from './components/ConnectionsSection'
 import ProfileSection from './components/ProfileSection'
 import SystemInfoSection from './components/SystemInfoSection'
 import NotificationsSection from './components/NotificationsSection'
+import { GPUMonitor } from './components/GPUMonitor'
 import { clsx } from 'clsx'
 
 const SettingsPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'connections' | 'system' | 'notifications'>('appearance')
+    const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'connections' | 'system' | 'gpu' | 'notifications'>('appearance')
 
     const tabs = [
         { id: 'profile', label: 'My Account', icon: User },
         { id: 'appearance', label: 'Appearance', icon: Palette },
         { id: 'connections', label: 'Connections', icon: Shield },
         { id: 'system', label: 'System Info', icon: HardDrive },
+        { id: 'gpu', label: 'GPU Status', icon: Cpu },
         { id: 'notifications', label: 'Notifications', icon: Bell },
     ]
 
@@ -67,6 +69,7 @@ const SettingsPage: React.FC = () => {
                         {activeTab === 'appearance' && <AppearanceSection />}
                         {activeTab === 'connections' && <ConnectionsSection />}
                         {activeTab === 'system' && <SystemInfoSection />}
+                        {activeTab === 'gpu' && <GPUMonitor />}
                         {activeTab === 'notifications' && <NotificationsSection />}
                     </div>
                 </div>

@@ -21,3 +21,8 @@ insightface
 onnxruntime-gpu
 controlnet_aux
 scikit-learn
+pytest
+httpx
+# New dependencies for roadmap features
+huggingface_hub>=0.20.0
+websockets>=12.0
