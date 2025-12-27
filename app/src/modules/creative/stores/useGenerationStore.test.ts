@@ -53,8 +53,8 @@ describe('useGenerationStore', () => {
         })
 
         it('should update output format', () => {
-            useGenerationStore.getState().setOutputFormat('jpeg')
-            expect(useGenerationStore.getState().params.outputFormat).toBe('jpeg')
+            useGenerationStore.getState().setOutputFormat('jpg')
+            expect(useGenerationStore.getState().params.outputFormat).toBe('jpg')
         })
 
         it('should update steps', () => {

@@ -341,7 +341,7 @@ export const GenerationTabs: React.FC<TabProps> = ({ activeTab, setActiveTab }) 
                                     <div className="space-y-2">
                                         <label className="text-[10px] uppercase text-gray-500 font-bold">Format</label>
                                         <div className="flex bg-black/20 p-1 rounded-lg border border-white/5">
-                                            {(['png', 'jpeg', 'webp'] as const).map(fmt => (
+                                            {(['png', 'jpg', 'webp'] as const).map(fmt => (
                                                 <button
                                                     key={fmt}
                                                     onClick={() => setOutputFormat(fmt)}
