@@ -3,6 +3,7 @@ import { Link, Cloud, Key } from 'lucide-react'
 import { useGlobalStore } from '../../../store/useGlobalStore'
 import { clsx } from 'clsx'
 import { useSystemStore } from '../../../store/useSystemStore'
+import { apiFetch } from '@/lib/api'
 
 const ConnectionsSection: React.FC = () => {
     const { apiEndpoint, huggingFaceToken, civitaiApiKey, updateSettings } = useGlobalStore()
@@ -14,18 +15,9 @@ const ConnectionsSection: React.FC = () => {
     const handleCheckStatus = async () => {
         setIsChecking(true)
         try {
-            const endpoint = tempEndpoint || apiEndpoint
-            // We use direct fetch here because we might want to test an endpoint 
-            // BEFORE saving it to global store, but we must include bypass headers
-            const response = await fetch(`${endpoint}/health`, {
-                headers: {
-                    'ngrok-skip-browser-warning': 'true',
-                    'Content-Type': 'application/json'
-                }
-            })
-
-            if (response.ok) {
-                const data = await response.json()
+            // We use apiFetch which already uses the stored apiEndpoint
+            const data = await apiFetch<any>(`/health`)
+            if (data && data.status === 'online') {
 
                 // Update System Store to reflect live status
                 const systemStore = useSystemStore.getState()

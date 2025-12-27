@@ -48,12 +48,11 @@ const PromptConsole: React.FC = () => {
                 // Use LLM enhancement
                 setIsEnhancing(true)
                 try {
-                    const response = await apiFetch('/enhance-prompt', {
+                    const data = await apiFetch<any>('/enhance-prompt', {
                         method: 'POST',
                         body: JSON.stringify({ prompt: basePrompt })
                     })
-                    const data = await response.json()
-                    if (data.enhanced_prompt) {
+                    if (data && data.enhanced_prompt) {
                         finalPrompt = data.enhanced_prompt
                         addNotification({ type: 'success', message: 'Prompt enhanced with AI!' })
                     }
@@ -94,7 +93,7 @@ const PromptConsole: React.FC = () => {
         try {
             // Real API Call to Backend with generation parameters
             const apiUrl = getApiUrl()
-            const response = await apiFetch('/generate', {
+            const data = await apiFetch<any>('/generate', {
                 method: 'POST',
                 body: JSON.stringify({
                     prompt: finalPrompt,
@@ -108,12 +107,6 @@ const PromptConsole: React.FC = () => {
                     output_format: params.outputFormat
                 })
             })
-
-            if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`)
-            }
-
-            const data = await response.json()
 
             // Update progress to complete
             updateJobProgress(100)
@@ -183,14 +176,12 @@ const PromptConsole: React.FC = () => {
         setIsInterrogating(true)
         try {
             // Convert base64 to blob for API
-            const response = await apiFetch('/interrogate', {
+            const data = await apiFetch<any>('/interrogate', {
                 method: 'POST',
                 body: JSON.stringify({
                     image: uploadedImage
                 })
             })
-
-            const data = await response.json()
 
             if (data.prompt) {
                 setInput(data.prompt)

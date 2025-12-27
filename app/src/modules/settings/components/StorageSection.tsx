@@ -13,11 +13,8 @@ export default function StorageSection() {
 
     const loadConfig = async () => {
         try {
-            const res = await apiFetch('/system/config');
-            if (res.ok) {
-                const data = await res.json();
-                setConfig(data);
-            }
+            const data = await apiFetch<any>('/system/config');
+            setConfig(data);
         } catch (error) {
             console.error('Failed to load system config', error);
         } finally {

@@ -1230,6 +1230,34 @@ def get_system_config():
     """Get current system configuration"""
     return SYSTEM_CONFIG
 
+@app.get("/gallery")
+def get_gallery():
+    """List all generated images in the outputs folder"""
+    assets = []
+    files = glob.glob("outputs/*")
+    
+    # Filter for actually images
+    image_exts = {".png", ".jpg", ".jpeg", ".webp"}
+    
+    for f in sorted(files, key=os.path.getmtime, reverse=True):
+        ext = os.path.splitext(f)[1].lower()
+        if ext in image_exts:
+            basename = os.path.basename(f)
+            stats = os.stat(f)
+            assets.append({
+                "id": basename,
+                "url": f"/outputs/{basename}",
+                "prompt": "Generated Image", # Metadata storage could be improved later
+                "width": 1024, # Default or could be read from image
+                "height": 1024,
+                "createdAt": int(stats.st_mtime * 1000),
+                "tags": [],
+                "model": "Juggernaut-XL v9",
+                "isFavorite": False,
+                "seed": 0
+            })
+    return assets
+
 class BatchZipRequest(BaseModel):
     filenames: List[str]
 

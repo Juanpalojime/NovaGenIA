@@ -5,7 +5,7 @@ import { useLibraryStore } from '../stores/useLibraryStore'
 import { useGlobalStore } from '@/store/useGlobalStore'
 import { useGenerationStore } from '@/modules/creative/stores/useGenerationStore'
 
-import { getApiUrl } from '@/lib/api'
+import { apiFetch, getApiUrl } from '@/lib/api'
 
 const ActionsBar: React.FC = () => {
     const { selectedAssetIds, clearSelection, deleteAssets, assets } = useLibraryStore()
@@ -42,15 +42,14 @@ const ActionsBar: React.FC = () => {
                     return parts[parts.length - 1]
                 })
 
-                const res = await fetch(`${getApiUrl()}/gallery/batch-zip`, {
+                const data = await apiFetch<any>('/gallery/batch-zip', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
                     body: JSON.stringify({ filenames })
                 })
 
-                if (res.ok) {
-                    const data = await res.json()
-                    const zipUrl = `${getApiUrl()}${data.zip_url}`
+                if (data && data.zip_url) {
+                    const apiUrl = getApiUrl()
+                    const zipUrl = `${apiUrl}${data.zip_url}`
 
                     // Trigger download
                     const a = document.createElement('a')
@@ -94,35 +93,27 @@ const ActionsBar: React.FC = () => {
                     const base64data = reader.result as string
 
                     try {
-                        const res = await fetch(`${apiUrl}/upscale`, {
+                        const data = await apiFetch<any>('/upscale', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ image: base64data })
                         })
 
-                        if (res.ok) {
-                            const data = await res.json()
+                        if (data && data.image) {
                             addNotification({ type: 'success', message: `Upscaled image ready!` })
-                            // Refresh library to see new image if backend saves it to gallery logic (Wait, upscale endpoint saves to disk but doesn't auto-add to JSON or returning standard format?)
-                            // The backend returns { image: { url: ... }, status: "success" }
-                            // We should add it to the library store manually here
-                            if (data.image) {
-                                useLibraryStore.getState().addAssets([{
-                                    id: `upscale-${Date.now()}`,
-                                    url: data.image.url.startsWith('http') ? data.image.url : `${apiUrl}${data.image.url}`,
-                                    prompt: asset.prompt + " (Upscaled)",
-                                    negativePrompt: asset.negativePrompt,
-                                    width: asset.width * 4,
-                                    height: asset.height * 4,
-                                    createdAt: Date.now(),
-                                    tags: ['upscaled', ...asset.tags],
-                                    model: 'SD x4 Upscaler',
-                                    isFavorite: false,
-                                    seed: 0
-                                }])
-                            }
-                        } else {
-                            throw new Error("Upscale failed")
+                            const apiUrl = getApiUrl()
+                            useLibraryStore.getState().addAssets([{
+                                id: `upscale-${Date.now()}`,
+                                url: data.image.url.startsWith('http') ? data.image.url : `${apiUrl}${data.image.url}`,
+                                prompt: asset.prompt + " (Upscaled)",
+                                negativePrompt: asset.negativePrompt,
+                                width: asset.width * 4,
+                                height: asset.height * 4,
+                                createdAt: Date.now(),
+                                tags: ['upscaled', ...asset.tags],
+                                model: 'SD x4 Upscaler',
+                                isFavorite: false,
+                                seed: 0
+                            }])
                         }
                     } catch (err) {
                         console.error(err)

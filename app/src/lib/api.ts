@@ -1,11 +1,23 @@
-import { useGlobalStore } from '../store/useGlobalStore'
-
 /**
- * Get the current API endpoint URL from the global store
+ * Get the current API endpoint URL from the global store (safely without circular dependency)
  */
 export function getApiUrl(): string {
-    const { apiEndpoint } = useGlobalStore.getState()
-    return apiEndpoint || 'http://localhost:7860'
+    try {
+        const stored = localStorage.getItem('novagen-global-storage')
+        if (stored) {
+            const parsed = JSON.parse(stored)
+            if (parsed && parsed.state && parsed.state.settings && parsed.state.settings.apiEndpoint) {
+                return parsed.state.settings.apiEndpoint
+            }
+            // Try top-level apiEndpoint if settings structure differs
+            if (parsed && parsed.state && parsed.state.apiEndpoint) {
+                return parsed.state.apiEndpoint
+            }
+        }
+    } catch (e) {
+        console.warn('[getApiUrl] Error reading from localStorage:', e)
+    }
+    return 'http://localhost:7860'
 }
 
 /**

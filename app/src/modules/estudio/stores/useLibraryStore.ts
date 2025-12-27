@@ -103,11 +103,20 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         assets: state.assets.map(a => a.id === id ? { ...a, isFavorite: !a.isFavorite } : a)
     })),
 
-    deleteAssets: (ids) => {
+    deleteAssets: async (ids) => {
         const { assets, history } = get()
-        // Save current state to history before deleting
-        const newHistory = [assets, ...history].slice(0, 10)
 
+        // 1. Call backend for each
+        for (const id of ids) {
+            try {
+                await apiFetch(`/gallery/asset/${id}`, { method: 'DELETE' })
+            } catch (e) {
+                console.error(`Failed to delete asset ${id} from server`, e)
+            }
+        }
+
+        // 2. Update local state
+        const newHistory = [assets, ...history].slice(0, 10)
         set({
             assets: assets.filter(a => !ids.includes(a.id)),
             selectedAssetIds: [],

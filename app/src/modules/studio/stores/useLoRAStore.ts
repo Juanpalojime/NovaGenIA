@@ -6,6 +6,7 @@
  */
 
 import { create } from 'zustand';
+import { apiFetch } from '@/lib/api';
 
 export interface LoRAMetadata {
     id: string;
@@ -60,10 +61,8 @@ export const useLoRAStore = create<LoRAStore>((set, get) => ({
     fetchLoras: async () => {
         set({ loading: true, error: null });
         try {
-            const response = await fetch('/api/loras');
-            if (!response.ok) throw new Error('Failed to fetch LoRAs');
-            const loras = await response.json();
-            set({ loras, loading: false });
+            const data = await apiFetch<LoRAMetadata[]>('/loras');
+            set({ loras: data, loading: false });
         } catch (error) {
             set({ error: (error as Error).message, loading: false });
         }
@@ -72,14 +71,11 @@ export const useLoRAStore = create<LoRAStore>((set, get) => ({
     searchLoras: async (query: string, tags?: string[]) => {
         set({ loading: true, error: null });
         try {
-            const params = new URLSearchParams();
-            if (query) params.append('query', query);
-            if (tags?.length) params.append('tags', tags.join(','));
-
-            const response = await fetch(`/api/loras/search?${params}`);
-            if (!response.ok) throw new Error('Search failed');
-            const loras = await response.json();
-            set({ loras, loading: false });
+            const data = await apiFetch<LoRAMetadata[]>('/loras/search', {
+                method: 'POST',
+                body: JSON.stringify({ query, tags })
+            });
+            set({ loras: data, loading: false });
         } catch (error) {
             set({ error: (error as Error).message, loading: false });
         }

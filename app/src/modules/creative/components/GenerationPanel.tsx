@@ -43,11 +43,10 @@ export const GenerationPanel: React.FC = () => {
         if (useMagicPrompt && activeTab !== 'faceswap' && activeTab !== 'upscale') {
             setIsEnhancing(true)
             try {
-                const response = await apiFetch('/enhance-prompt', {
+                const data = await apiFetch<any>('/enhance-prompt', {
                     method: 'POST',
                     body: JSON.stringify({ prompt: finalPrompt })
                 })
-                const data = await response.json()
                 if (data.enhanced_prompt) {
                     finalPrompt = data.enhanced_prompt
                     addNotification({ type: 'success', message: 'Prompt enhanced with AI!' })
@@ -120,16 +119,11 @@ export const GenerationPanel: React.FC = () => {
                 }
             }
 
-            const response = await apiFetch(endpoint, {
+            const data = await apiFetch<any>(endpoint, {
                 method: 'POST',
                 body: JSON.stringify(body)
             })
 
-            if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`)
-            }
-
-            const data = await response.json()
 
             updateJobProgress(100)
             completeJob()

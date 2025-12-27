@@ -18,17 +18,10 @@ export interface HealthCheckResponse {
  */
 export async function checkBackendHealth(): Promise<HealthCheckResponse | null> {
     try {
-        const response = await apiFetch('/health', {
+        const data = await apiFetch<HealthCheckResponse>('/health', {
             method: 'GET',
         })
-
-        if (!response.ok) {
-            console.error('Health check failed:', response.status)
-            return null
-        }
-
-        const data = await response.json()
-        return data as HealthCheckResponse
+        return data
     } catch (error) {
         console.error('Health check error:', error)
         return null
