@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { HardDrive, Cpu, Activity, Zap, Database, Clock } from 'lucide-react'
+import { Cpu, Activity, Database, Clock } from 'lucide-react'
 import { useSystemStore } from '../../../store/useSystemStore'
 import { useLibraryStore } from '@/modules/estudio/stores/useLibraryStore'
 

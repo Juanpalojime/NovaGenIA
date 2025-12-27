@@ -1,5 +1,5 @@
 import React from 'react'
-import { Monitor, Moon, Sun, Layout, Zap, Eye } from 'lucide-react'
+import { Monitor, Moon, Sun, Layout, Eye } from 'lucide-react'
 import { useGlobalStore } from '../../../store/useGlobalStore'
 import { clsx } from 'clsx'
 

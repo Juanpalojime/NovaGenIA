@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { User, Award, Activity, Database, Clock, Edit2, Shield, Save, X } from 'lucide-react'
 import { useGlobalStore } from '../../../store/useGlobalStore'
-import { clsx } from 'clsx'
 
 const ProfileSection: React.FC = () => {
     const { user, updateUser, addNotification } = useGlobalStore()

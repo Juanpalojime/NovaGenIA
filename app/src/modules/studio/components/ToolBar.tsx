@@ -1,5 +1,5 @@
 import React from 'react'
-import { MousePointer2, Move, Brush, Eraser, Layers, Maximize } from 'lucide-react'
+import { MousePointer2, Move, Brush, Eraser, Maximize } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useCanvasStore } from '../stores/useCanvasStore'
 

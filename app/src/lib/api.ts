@@ -12,7 +12,7 @@ export function getApiUrl(): string {
  * Make a fetch request to the API with the correct base URL
  * Includes ngrok-skip-browser-warning header to bypass Ngrok warning page
  */
-export async function apiFetch(path: string, options?: RequestInit): Promise<Response> {
+export async function apiFetch<T = any>(path: string, options?: RequestInit): Promise<T> {
     const apiUrl = getApiUrl()
 
     // Merge headers to include ngrok bypass
@@ -22,8 +22,14 @@ export async function apiFetch(path: string, options?: RequestInit): Promise<Res
         ...options?.headers
     }
 
-    return fetch(`${apiUrl}${path}`, {
+    const response = await fetch(`${apiUrl}${path}`, {
         ...options,
         headers
     })
+
+    if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`)
+    }
+
+    return response.json()
 }

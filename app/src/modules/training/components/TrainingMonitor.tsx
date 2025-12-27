@@ -1,7 +1,6 @@
 import React from 'react'
-import { Activity, Terminal, Clock, AlertCircle } from 'lucide-react'
+import { Activity, Terminal } from 'lucide-react'
 import { useTrainingStore } from '../stores/useTrainingStore'
-import { clsx } from 'clsx'
 
 const TrainingMonitor: React.FC = () => {
     const { activeJob, logs, metrics, systemStats, batchPreviews } = useTrainingStore()

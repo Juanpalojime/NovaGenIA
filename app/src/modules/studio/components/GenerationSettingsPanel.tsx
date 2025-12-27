@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { Zap, Palette, Sliders, ChevronDown, ChevronUp, Settings2, Play, Sparkles } from 'lucide-react'
+import { Zap, Palette, ChevronDown, ChevronUp, Settings2, Play, Sparkles } from 'lucide-react'
 import { clsx } from 'clsx'
-import { getApiUrl, apiFetch } from '../../../lib/api' // Use api.ts directly if it has what we need, or utils if we moved it
+import { apiFetch } from '../../../lib/api' // Use api.ts directly if it has what we need, or utils if we moved it
 // Just use api.ts as seen in PromptConsole
 
 interface GenerationSettingsPanelProps {
@@ -34,17 +34,17 @@ export const GenerationSettingsPanel: React.FC<GenerationSettingsPanelProps> = (
         const loadFeatures = async () => {
             try {
                 // We use direct fetch here or apiFetch
-                const [presetsRes, stylesRes, catsRes, samplersRes] = await Promise.all([
-                    apiFetch('/features/presets'),
-                    apiFetch('/features/styles'),
-                    apiFetch('/features/styles/categories'),
-                    apiFetch('/features/samplers')
+                const [presetsData, stylesData, catsData, samplersData] = await Promise.all([
+                    apiFetch<any[]>('/features/presets'),
+                    apiFetch<any[]>('/features/styles'),
+                    apiFetch<string[]>('/features/styles/categories'),
+                    apiFetch<any[]>('/features/samplers')
                 ])
 
-                if (presetsRes.ok) setPresets(await presetsRes.json())
-                if (stylesRes.ok) setStyles(await stylesRes.json())
-                if (catsRes.ok) setCategories(['All', ...await catsRes.json()])
-                if (samplersRes.ok) setSamplers(await samplersRes.json())
+                setPresets(presetsData)
+                setStyles(stylesData)
+                setCategories(['All', ...catsData])
+                setSamplers(samplersData)
             } catch (error) {
                 console.error("Failed to load features:", error)
             }

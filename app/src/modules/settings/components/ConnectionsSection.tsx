@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link, Cloud, Key, CheckCircle, XCircle } from 'lucide-react'
+import { Link, Cloud, Key } from 'lucide-react'
 import { useGlobalStore } from '../../../store/useGlobalStore'
 import { clsx } from 'clsx'
 import { useSystemStore } from '../../../store/useSystemStore'

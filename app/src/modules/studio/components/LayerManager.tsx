@@ -1,10 +1,10 @@
 import React from 'react'
-import { Eye, EyeOff, GripVertical, Image as ImageIcon, Wand2, Lock, Unlock, MoreHorizontal } from 'lucide-react'
+import { Eye, EyeOff, GripVertical, Image as ImageIcon, Wand2, Lock, Unlock } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useCanvasStore } from '../stores/useCanvasStore'
 
 const LayerManager: React.FC = () => {
-    const { layers, activeLayerId, setActiveLayer, toggleLayerVisibility, toggleLayerLock, setLayerBlendMode, reorderLayers, addLayer } = useCanvasStore()
+    const { layers, activeLayerId, setActiveLayer, toggleLayerVisibility, toggleLayerLock, setLayerBlendMode, addLayer } = useCanvasStore()
 
     const handleAddLayer = () => {
         addLayer({

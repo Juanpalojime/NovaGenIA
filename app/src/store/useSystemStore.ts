@@ -48,7 +48,7 @@ export const useSystemStore = create<SystemState>((set) => ({
     setNgrokUrl: (url: string) => set({ ngrokUrl: url }),
     setGpuStatus: (status: 'online' | 'offline' | 'busy') => set({ gpuStatus: status }),
     setVramUsage: (usage: number) => set({ vramUsage: usage }),
-    setCurrentJob: (job: string | null) => set({ currentJob: null }),
+    setCurrentJob: (_job: string | null) => set({ currentJob: null }),
 
     // Job management methods
     startJob: (job: Job) => set({ currentJob: job, gpuStatus: 'busy' }),
