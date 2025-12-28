@@ -140,7 +140,7 @@ const CanvasBoard: React.FC = () => {
     return (
         <div
             className={clsx(
-                "absolute inset-0 bg-[#080808] overflow-hidden cursor-crosshair touch-none", // touch-none is crucial
+                "absolute inset-0 bg-neutral-950 overflow-hidden cursor-crosshair touch-none", // touch-none is crucial
                 (activeTool === 'move') && "cursor-grab active:cursor-grabbing"
             )}
             onMouseDown={handleMouseDown}
@@ -177,7 +177,7 @@ const CanvasBoard: React.FC = () => {
                         {/* Dynamic Brush Preview would go here (tracking mouse) */}
                         <div className={clsx(
                             "absolute inset-0 opacity-10 transition-opacity duration-300",
-                            activeTool === 'brush' ? "bg-neon-cyan/10" : "bg-neon-magenta/10"
+                            activeTool === 'brush' ? "bg-brand-500/20" : "bg-secondary-500/20"
                         )} />
                     </div>
                 )}
@@ -185,8 +185,8 @@ const CanvasBoard: React.FC = () => {
 
             {/* HUD Info */}
             <div className="absolute bottom-6 left-6 flex gap-3 z-10 pointer-events-none">
-                <div className="px-3 py-1 bg-black/60 backdrop-blur rounded text-xs text-gray-400 font-mono border border-white/5 flex items-center gap-2">
-                    <span>{Math.round(zoom * 100)}%</span>
+                <div className="px-3 py-1 bg-neutral-900/80 backdrop-blur-md rounded-token text-xs text-neutral-400 font-mono border border-border flex items-center gap-2">
+                    <span className="text-brand-400">{Math.round(zoom * 100)}%</span>
                     <span className="w-px h-3 bg-white/10" />
                     <span>X: {Math.round(pan.x)} Y: {Math.round(pan.y)}</span>
                 </div>

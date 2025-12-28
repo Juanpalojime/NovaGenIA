@@ -79,7 +79,7 @@ export const useGlobalStore = create<GlobalState>()(
             uiDensity: 'comfortable',
             reduceMotion: false,
 
-            apiEndpoint: 'http://localhost:7860',
+            apiEndpoint: 'http://localhost:3000',
             huggingFaceToken: '',
             civitaiApiKey: '',
             connectionLogs: [],
@@ -112,7 +112,7 @@ export const useGlobalStore = create<GlobalState>()(
                 accentColor: 'cyan',
                 uiDensity: 'comfortable',
                 reduceMotion: false,
-                apiEndpoint: 'http://localhost:7860',
+                apiEndpoint: 'http://localhost:3000',
                 notificationsEnabled: true
             }),
 

@@ -58,12 +58,13 @@ except ImportError:
 # Import WebSocket manager
 from websocket_manager import manager as ws_manager, get_progress_callback
 
-# Import Advanced Features (Fooocus/SD WebUI)
-from advanced_samplers import get_all_samplers, get_sampler_config, SAMPLER_MAPPING
-from quality_presets import get_all_presets, apply_preset
-from sdxl_styles import get_all_styles, apply_style, get_categories
-from wildcards import process_wildcards, get_available_wildcards
-from vram_optimizer import optimize_for_generation, clear_vram
+# Import Modules (Refactored)
+from modules.flags import GenerationMode, Performance, OutputFormat 
+from modules.samplers import get_all_samplers, get_sampler_config, SAMPLER_MAPPING
+from modules.presets import get_all_presets, apply_preset
+from modules.sdxl_styles import get_all_styles, apply_style, get_categories
+from modules.core import optimize_for_generation, clear_vram
+from modules.upscaler import load_upscaler_model, get_upscaler_pipe, offload_upscaler
 import file_manager
 
 # ==================== System Config ====================
@@ -114,7 +115,7 @@ app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 pipe = None
 img2img_pipe = None
 controlnet_pipe = None
-upscale_pipe = None
+# upscale_pipe managed in modules.upscaler
 phi3_pipe = None
 phi3_tokenizer = None
 blip_processor = None
@@ -126,11 +127,8 @@ controlnet_models = {}
 
 # ==================== Generation Modes ====================
 
-class GenerationMode(str, Enum):
-    EXTREME_SPEED = "extreme_speed"
-    SPEED = "speed"
-    QUALITY = "quality"
-
+# Generation Modes now in modules.flags but config kept here or moved to config module potentially. 
+# Keeping config dict locally for now as it maps Enum to values.
 MODE_CONFIGS: Dict[GenerationMode, dict] = {
     GenerationMode.EXTREME_SPEED: {
         "steps": 15,
@@ -217,7 +215,28 @@ def get_aspect_ratio_config(ratio: str) -> AspectRatioConfig:
         return ASPECT_RATIOS["1:1"]
     return ASPECT_RATIOS[ratio]
 
-# ==================== Model Loading ====================
+# ==================== Model Loading & VRAM Management ====================
+
+def offload_main_models():
+    """Offload main models to CPU to free VRAM"""
+    global pipe, img2img_pipe, controlnet_pipe
+    print("⏳ Offloading Main Models to CPU...")
+    if pipe is not None: pipe.to("cpu")
+    if img2img_pipe is not None: img2img_pipe.to("cpu")
+    if controlnet_pipe is not None: controlnet_pipe.to("cpu")
+    torch.cuda.empty_cache()
+    print("✅ Main Models Offloaded")
+
+def ensure_main_model_cuda():
+    """Ensure main model is on CUDA"""
+    global pipe
+    if pipe is None:
+        load_model()
+    elif pipe.device.type != "cuda":
+        print("⏳ Moving Main Model back to CUDA...")
+        pipe.to("cuda")
+        print("✅ Main Model on CUDA")
+
 
 def load_model():
     global pipe
@@ -337,19 +356,8 @@ def load_faceswap_models():
         else:
              print(f"⚠️ FaceSwap model not found at {swap_model_path}. Please download inswapper_128.onnx.")
 
-def load_upscaler_model():
-    global upscale_pipe
-    if upscale_pipe is None:
-        print("⏳ Loading x4 Upscaler...")
-        try:
-            upscale_pipe = StableDiffusionUpscalePipeline.from_pretrained(
-                "stabilityai/stable-diffusion-x4-upscaler",
-                torch_dtype=torch.float16
-            ).to("cuda")
-            upscale_pipe.enable_xformers_memory_efficient_attention()
-            print("✅ x4 Upscaler loaded")
-        except Exception as e:
-            print(f"❌ Error loading Upscaler: {e}")
+
+# Upscaler load moved to modules.upscaler
 
 def load_phi3_model():
     global phi3_pipe, phi3_tokenizer
@@ -472,7 +480,8 @@ class FaceSwapRequest(BaseModel):
     output_format: str = "png"
 
 class UpscaleRequest(BaseModel):
-    image: str 
+    image: Optional[str] = None # Base64 or URL
+    filename: Optional[str] = None # Local filename in outputs/
     prompt: str = "high quality"
     output_format: str = "png"
 
@@ -500,6 +509,42 @@ async def startup_event():
 
 # ==================== Helpers ====================
 
+def decode_image(image_input: str) -> Image.Image:
+    """Robust image decoding from base64, URL or local path"""
+    print(f"[DEBUG] Decoding image input (len={len(image_input)}): {image_input[:50]}...")
+    
+    try:
+        # 1. Handle Base64
+        if image_input.startswith("data:image") or "," in image_input[:50]:
+            base64_data = image_input.split(",")[1] if "," in image_input else image_input
+            return Image.open(BytesIO(base64.b64decode(base64_data))).convert("RGB")
+        
+        # 2. Handle URL
+        if image_input.startswith("http"):
+             import requests
+             response = requests.get(image_input, timeout=10)
+             return Image.open(BytesIO(response.content)).convert("RGB")
+        
+        # 3. Handle Local Path (relative to outputs)
+        if "outputs" in image_input or image_input.startswith("/"):
+            # Clean path
+            clean_path = image_input.lstrip("/")
+            if not os.path.exists(clean_path):
+                 # Try relative to script
+                 clean_path = os.path.join(os.path.dirname(__file__), clean_path)
+            
+            if os.path.exists(clean_path):
+                 return Image.open(clean_path).convert("RGB")
+                 
+        # 4. Fallback: Try raw base64 decode if it looks like it
+        return Image.open(BytesIO(base64.b64decode(image_input))).convert("RGB")
+    except Exception as e:
+        print(f"[ERROR] Failed to decode image: {e}")
+        # If it's a small input, it might be ngrok error page HTML
+        if len(image_input) < 2000:
+             print(f"[DEBUG] Small input suspect (HTML?): {image_input}")
+        raise ValueError(f"Could not identify or decode image: {str(e)}")
+
 def save_image(image, output_format="png"):
     timestamp = int(time.time() * 1000)
     fmt = output_format.lower()
@@ -515,13 +560,18 @@ def save_image(image, output_format="png"):
         save_params = {"optimize": True}
         
     filename = f"gen_{timestamp}.{ext}"
-    filepath = os.path.join("outputs", filename)
+    out_dir = os.path.abspath("outputs")
+    os.makedirs(out_dir, exist_ok=True)
+    filepath = os.path.join(out_dir, filename)
+    
+    print(f"[DEBUG] Saving image to: {filepath}")
     
     # Ensure image is in RGB for JPEG
     if pil_format == "JPEG" and image.mode != "RGB":
         image = image.convert("RGB")
         
     image.save(filepath, format=pil_format, **save_params)
+    print(f"[DEBUG] File exists after save: {os.path.exists(filepath)}")
     return filename, filepath
 
 # ==================== Endpoints ====================
@@ -539,7 +589,7 @@ def health_check():
         "base_model": pipe is not None,
         "img2img": img2img_pipe is not None,
         "controlnet": controlnet_pipe is not None,
-        "upscaler": upscale_pipe is not None,
+        "upscaler": get_upscaler_pipe() is not None,
         "phi3": phi3_pipe is not None,
         "blip": blip_model is not None,
         "face_swap": face_swapper is not None
@@ -632,7 +682,7 @@ async def websocket_progress(websocket: WebSocket, job_id: str):
 
 @app.post("/generate")
 async def generate_image(req: GenerationRequest, background_tasks: BackgroundTasks):
-    if pipe is None: load_model()
+    ensure_main_model_cuda()
     
     # 1. Apply Preset (overrides mode if present)
     current_steps = req.steps
@@ -728,14 +778,14 @@ async def generate_image(req: GenerationRequest, background_tasks: BackgroundTas
 @app.post("/img2img")
 async def image_to_image(req: Img2ImgRequest):
     """Image-to-Image with Batch Support"""
-    if pipe is None: load_model()
+    ensure_main_model_cuda()
     if img2img_pipe is None: load_img2img_model()
+    if img2img_pipe.device.type != "cuda": img2img_pipe.to("cuda")
     
     try:
-        image_data = base64.b64decode(req.image.split(',')[1] if ',' in req.image else req.image)
-        init_image = Image.open(BytesIO(image_data)).convert("RGB")
-    except:
-        raise HTTPException(400, "Invalid Image")
+        init_image = decode_image(req.image)
+    except Exception as e:
+        raise HTTPException(400, f"Invalid Image: {str(e)}")
     
     mode_config = MODE_CONFIGS[req.mode]
     set_scheduler(mode_config["sampler"])
@@ -781,15 +831,14 @@ async def image_to_image(req: Img2ImgRequest):
 
 @app.post("/controlnet")
 async def controlnet_generate(req: ControlNetRequest):
-    if pipe is None: load_model()
+    ensure_main_model_cuda()
     load_controlnet_model(req.control_type)
     
     try:
-        image_data = base64.b64decode(req.image.split(',')[1] if ',' in req.image else req.image)
-        init_image = Image.open(BytesIO(image_data)).convert("RGB")
+        init_image = decode_image(req.image)
         processed_image = preprocess_control_image(init_image, req.control_type)
-    except:
-         raise HTTPException(400, "Invalid Image")
+    except Exception as e:
+         raise HTTPException(400, f"Invalid Image: {str(e)}")
 
     mode_config = MODE_CONFIGS[req.mode]
     set_scheduler(mode_config["sampler"])
@@ -831,11 +880,11 @@ async def face_swap(req: FaceSwapRequest):
         
     try:
         # Decode images
-        source_data = base64.b64decode(req.source_image.split(',')[1] if ',' in req.source_image else req.source_image)
-        target_data = base64.b64decode(req.target_image.split(',')[1] if ',' in req.target_image else req.target_image)
+        source_pil = decode_image(req.source_image)
+        target_pil = decode_image(req.target_image)
         
-        source_img = cv2.cvtColor(np.array(Image.open(BytesIO(source_data))), cv2.COLOR_RGB2BGR)
-        target_img = cv2.cvtColor(np.array(Image.open(BytesIO(target_data))), cv2.COLOR_RGB2BGR)
+        source_img = cv2.cvtColor(np.array(source_pil), cv2.COLOR_RGB2BGR)
+        target_img = cv2.cvtColor(np.array(target_pil), cv2.COLOR_RGB2BGR)
         
         # Detect faces
         source_faces = face_app.get(source_img)
@@ -873,16 +922,33 @@ async def face_swap(req: FaceSwapRequest):
 @app.post("/upscale")
 async def upscale_image(req: UpscaleRequest):
     """Upscale image using Stable Diffusion x4 Upscaler"""
-    if upscale_pipe is None:
+    # 1. Offload heavy models using local server helper
+    offload_main_models()
+
+    if get_upscaler_pipe() is None:
         load_upscaler_model()
     
+    upscale_pipe = get_upscaler_pipe()
     if upscale_pipe is None:
         raise HTTPException(500, "Upscaler model not available")
     
+    # Ensure upscaler is on CUDA
+    if upscale_pipe.device.type != "cuda":
+        upscale_pipe.to("cuda")
+
     try:
-        # Decode image
-        image_data = base64.b64decode(req.image.split(',')[1] if ',' in req.image else req.image)
-        init_image = Image.open(BytesIO(image_data)).convert("RGB")
+        # Decode image - Try Local First if filename provided
+        if req.filename:
+            target_path = os.path.join("outputs", os.path.basename(req.filename))
+            if os.path.exists(target_path):
+                print(f"[DEBUG] Using local file for upscale: {target_path}")
+                init_image = Image.open(target_path).convert("RGB")
+            else:
+                raise ValueError(f"Local file not found: {target_path}")
+        elif req.image:
+            init_image = decode_image(req.image)
+        else:
+            raise HTTPException(400, "Must provide either image data or filename")
         
         # Upscale
         upscaled = upscale_pipe(
@@ -894,6 +960,9 @@ async def upscale_image(req: UpscaleRequest):
         # Save
         filename, filepath = save_image(upscaled, req.output_format)
         
+        # Offload
+        offload_upscaler()
+
         return {
             "image": {
                 "url": f"/outputs/{filename}",

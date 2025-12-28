@@ -3,56 +3,75 @@
 @tailwind utilities;
 
 :root {
-  --color-bg-deep: #050505;
-  --color-neon-cyan: #00f3ff;
-  --color-neon-magenta: #ff00ff;
-
+  --color-bg-base: #030712;
+  --color-primary: #6366f1;
+  --color-secondary: #ec4899;
+  
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Outfit', system-ui, sans-serif;
 }
 
 body {
-  background-color: var(--color-bg-deep);
-  color: #ffffff;
+  background-color: var(--color-bg-base);
+  color: #f3f4f6; /* Gray 100 */
   font-family: var(--font-sans);
   overflow-x: hidden;
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar Customization */
+/* Custom Selection */
+::selection {
+    background: rgba(99, 102, 241, 0.3);
+    color: #fff;
+}
+
+/* Scrollbar Customization - Sleek & Minimal */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  transition: all 0.3s;
 }
 
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Utilities */
 @layer utilities {
-  .shadow-neon-cyan {
-    box-shadow: 0 0 10px rgba(0, 243, 255, 0.3), 0 0 20px rgba(0, 243, 255, 0.1);
+  .text-gradient {
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-image: linear-gradient(to right, #6366f1, #a855f7);
+  }
+  
+  .glass-panel {
+    @apply bg-surface-glass backdrop-blur-md border border-border;
+  }
+  
+  .card-hover {
+    @apply transition-all duration-300 hover:border-primary/50 hover:shadow-glow-primary hover:-translate-y-1;
   }
 }
 
-@keyframes pulse-neon {
-
-  0%,
-  100% {
-    box-shadow: 0 0 5px rgba(0, 243, 255, 0.5);
-    opacity: 1;
-  }
-
-  50% {
-    box-shadow: 0 0 20px rgba(0, 243, 255, 0.8), 0 0 10px rgba(0, 243, 255, 0.5);
-    opacity: 0.8;
-  }
+/* Animations */
+.fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
 }
 
-.animate-pulse-neon {
-  animation: pulse-neon 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }

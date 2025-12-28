@@ -17,7 +17,7 @@ export function getApiUrl(): string {
     } catch (e) {
         console.warn('[getApiUrl] Error reading from localStorage:', e)
     }
-    return 'http://localhost:7860'
+    return 'http://localhost:3000'
 }
 
 /**

@@ -1,13 +1,16 @@
 {
-  "dependencies": {
-    "autoprefixer": "^10.4.23",
-    "clsx": "^2.1.1",
-    "framer-motion": "^12.23.26",
-    "lucide-react": "^0.562.0",
-    "postcss": "^8.5.6",
-    "react-router-dom": "^7.11.0",
-    "tailwind-merge": "^3.4.0",
-    "tailwindcss": "^4.1.18",
-    "zustand": "^5.0.9"
+  "name": "novagen-ia-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "concurrently \"npm run start:python\" \"npm run start:node\" \"npm run start:frontend\"",
+    "start:python": "python server.py",
+    "start:node": "cd server-node && node index.js",
+    "start:frontend": "cd app && npm run dev",
+    "install:all": "npm install && cd app && npm install && cd ../server-node && npm install",
+    "dev": "npm run start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }
